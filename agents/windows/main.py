@@ -5,6 +5,7 @@ import os
 import platform
 import socket
 import sys
+import time
 
 BASE_DIR = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "..")
@@ -23,6 +24,10 @@ from shared.protocol import (
 )
 
 from agents.windows.commandes_locales import executer_diagnostic
+
+
+MAX_TENTATIVES = 3
+DELAI_RECONNEXION = 3
 
 
 def parse_args():
@@ -115,7 +120,10 @@ def handle_message(client, msg):
                 })
             else:
                 response = error(
-                    diagnostic.get("erreur", "Echec du diagnostic"),
+                    diagnostic.get(
+                        "erreur",
+                        "Echec du diagnostic"
+                    ),
                     "DIAGNOSTIC_FAILED"
                 )
 
@@ -198,17 +206,42 @@ def main():
     )
 
     try:
-        connect_and_listen(
-            args.ip,
-            args.port,
-            args.name
-        )
+        for tentative in range(1, MAX_TENTATIVES + 1):
+            print(
+                f"[*] Tentative {tentative}/{MAX_TENTATIVES}"
+            )
+
+            try:
+                connect_and_listen(
+                    args.ip,
+                    args.port,
+                    args.name
+                )
+
+                print("[OK] Session terminee")
+                return
+
+            except OSError as exc:
+                print(f"[-] Erreur reseau : {exc}")
+
+                if tentative == MAX_TENTATIVES:
+                    print(
+                        "[-] Nombre maximal de "
+                        "tentatives atteint"
+                    )
+                    return
+
+                print(
+                    f"[*] Nouvelle tentative dans "
+                    f"{DELAI_RECONNEXION} secondes..."
+                )
+                time.sleep(DELAI_RECONNEXION)
 
     except KeyboardInterrupt:
-        print("\n[*] Arret demande")
+        print("\n[*] Arret demande par l'utilisateur")
 
-    except (OSError, ValueError, json.JSONDecodeError) as exc:
-        print(f"[-] Erreur : {exc}")
+    except (ValueError, json.JSONDecodeError) as exc:
+        print(f"[-] Erreur de protocole : {exc}")
 
 
 if __name__ == "__main__":
