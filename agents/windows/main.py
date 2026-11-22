@@ -16,6 +16,7 @@ from shared.protocol import (
     MessageType,
     decode_message,
     encode_message,
+    error,
     hello,
     make_message,
     result,
@@ -106,8 +107,12 @@ def handle_message(client, msg):
         response["id"] = msg_id
 
     else:
-        print(f"[!] Message ignore : {msg_type}")
-        return
+        print(f"[!] Commande inconnue : {msg_type}")
+        response = error(
+            f"Commande non reconnue : {msg_type}",
+            "UNKNOWN_COMMAND"
+        )
+        response["id"] = msg_id
 
     client.sendall(encode_message(response))
     print(f"[+] Reponse envoyee : {response['type']}")
