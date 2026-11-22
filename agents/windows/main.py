@@ -22,7 +22,7 @@ from shared.protocol import (
     result,
 )
 
-from agents.windows import registry, security_audit
+from agents.windows.commandes_locales import executer_diagnostic
 
 
 def parse_args():
@@ -86,8 +86,39 @@ def handle_message(client, msg):
             "version": platform.release(),
             "hostname": platform.node(),
         }
-
         response = result({"info": info})
+        response["id"] = msg_id
+
+    elif msg_type == MessageType.CMD.value:
+        data = msg.get("data", {})
+        if not isinstance(data, dict):
+            data = {}
+
+        commande = data.get("command")
+        arguments = data.get("args", [])
+
+        if (
+            commande not in ("date", "ordinateur", "windows")
+            or arguments != []
+        ):
+            response = error(
+                "Diagnostic non autorise ou arguments invalides",
+                "COMMAND_NOT_ALLOWED"
+            )
+        else:
+            diagnostic = executer_diagnostic(commande)
+
+            if diagnostic["ok"]:
+                response = result({
+                    "commande": commande,
+                    "diagnostic": diagnostic,
+                })
+            else:
+                response = error(
+                    diagnostic.get("erreur", "Echec du diagnostic"),
+                    "DIAGNOSTIC_FAILED"
+                )
+
         response["id"] = msg_id
 
     elif msg_type == MessageType.REGISTRY.value:
