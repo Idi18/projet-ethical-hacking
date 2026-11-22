@@ -1,252 +1,338 @@
-\# Documentation technique — Agent Windows
+# Documentation technique — Agent Windows V4
 
+## 1. Présentation du projet
 
+L'agent Windows est une composante du projet universitaire *Ethical Hacking*, développé en Python dans un environnement de laboratoire VMware.
 
-\## 1. Présentation
+Il établit une connexion TCP avec un serveur de test exécuté sur Kali Linux. Les machines échangent des messages au format JSON selon un protocole commun défini dans `shared/protocol.py`.
 
+L'objectif de cette composante est de démontrer la communication entre machines, la récupération d'informations système, l'exécution contrôlée de diagnostics et la gestion des erreurs réseau.
 
+Les essais ont été réalisés dans un environnement de laboratoire autorisé.
 
-L'agent Windows est une composante du projet universitaire Ethical Hacking, développé en Python dans un environnement de laboratoire VMware.
+## 2. Architecture du laboratoire
 
-
-
-Il communique avec un serveur TCP situé sur une machine virtuelle Kali Linux. Les messages échangés utilisent le format JSON, avec un protocole commun défini dans `shared/protocol.py`.
-
-
-
-\## 2. Architecture du laboratoire
-
-
-
-| Machine | Adresse IP | Fonction |
-
+| Machine | Adresse IPv4 | Fonction |
 |---|---|---|
+| Windows 11 — ordinateur hôte | `192.168.109.1` | Agent Windows |
+| Kali Linux — VMware | `192.168.109.129` | Serveur TCP de test |
+| Debian Linux — VMware | `192.168.109.133` | Client Linux de test |
 
-| Windows 11 (ordinateur hôte) | 192.168.109.1 | Agent Windows |
+Le réseau VMware VMnet1 utilise le mode *Host-only* et le masque `255.255.255.0`.
 
-| Kali Linux (VMware) | 192.168.109.129 | Serveur de test TCP |
+Ce réseau permet aux machines du laboratoire de communiquer localement sans dépendre d'une connexion Internet.
 
-| Debian Linux (VMware) | 192.168.109.133 | Client Linux de test |
+### Fonctionnement général
 
+1. Le serveur Kali démarre et écoute sur le port TCP `5001`.
+2. L'agent Windows est lancé manuellement.
+3. Windows établit une connexion TCP avec Kali.
+4. L'agent envoie un message `HELLO` contenant son nom, son système d'exploitation et ses adresses IPv4.
+5. Le serveur retourne `HELLO_ACK`.
+6. Le serveur transmet des demandes compatibles avec le protocole.
+7. L'agent traite les demandes autorisées et renvoie les réponses JSON correspondantes.
+8. Lorsque le serveur ferme normalement la connexion, l'agent termine sa session.
 
+Les messages JSON sont séparés par des retours à la ligne pour permettre leur lecture sur le flux TCP.
 
-Le réseau VMware VMnet1 (Host-only) permet aux machines de communiquer localement, sans nécessiter d'accès Internet.
+## 3. Organisation des fichiers
 
+| Fichier | Fonction |
+|---|---|
+| `agents/windows/main.py` | Programme principal de l'agent Windows V4 |
+| `agents/windows/commandes_locales.py` | Diagnostics PowerShell autorisés |
+| `agents/windows/registry.py` | Modification locale d'une valeur du registre |
+| `agents/windows/security_audit.py` | Capture d'écran locale avec encodage Base64 |
+| `agents/windows/sam_audit.py` | Module expérimental relatif aux ruches SAM et SYSTEM |
+| `shared/protocol.py` | Définition du protocole JSON commun |
+| `docs/WINDOWS_AGENT.md` | Documentation technique de l'agent |
 
+Des versions antérieures du programme ont également été conservées pour faciliter les vérifications.
 
-\## 3. Fichiers de la partie Windows
+## 4. Fonctionnalités développées et validées
 
+### 4.1 Connexion TCP
 
+L'agent utilise le module Python `socket` pour établir une connexion avec le serveur Kali.
 
-\- `agents/windows/main.py` : programme principal, connexion TCP et traitement des messages JSON.
+Une connexion réelle entre Windows et Kali a été validée sur le réseau VMware VMnet1.
 
-\- `agents/windows/registry.py` : modification locale d'une valeur de registre Windows.
+Les échanges suivants ont été testés :
 
-\- `agents/windows/security\_audit.py` : fonction locale de capture d'écran encodée en Base64.
+| Message | Utilité | Résultat |
+|---|---|---|
+| `HELLO` | Identification de l'agent | Réussi |
+| `HELLO_ACK` | Confirmation du serveur | Réussi |
+| `PING` | Vérification de la connexion | Réussi |
+| `PONG` | Réponse au message PING | Réussi |
+| `SYSINFO` | Demande d'informations système | Réussi |
+| `RESULT` | Transmission d'un résultat | Réussi |
+| `CMD` | Demande d'un diagnostic autorisé | Réussi |
+| `ERROR` | Réponse à une demande non autorisée | Réussi |
 
-\- `agents/windows/sam\_audit.py` : module expérimental lié aux ruches SAM et SYSTEM, non intégré à l'agent principal.
+### 4.2 Récupération des adresses IPv4
 
-\- `shared/protocol.py` : structure commune des messages JSON.
+La fonction `get_real_ips()` récupère les adresses IPv4 disponibles sur les interfaces réseau de Windows.
 
+Elle utilise `psutil` lorsqu'il est disponible et exclut les adresses de bouclage commençant par `127.`.
 
+Les essais ont notamment confirmé la présence des interfaces :
 
-\## 4. Fonctionnalités validées
+- Wi-Fi : `192.168.1.187`
+- VMware VMnet1 : `192.168.109.1`
+- VMware VMnet8 : `192.168.104.1`
 
+D'autres adresses locales ont également été détectées.
 
+La fonction énumère les interfaces IPv4, mais ne filtre pas toutes les interfaces virtuelles ni les adresses de liaison locale `169.254.x.x`.
 
-\### Communication TCP/JSON
+### 4.3 Informations système
 
+Lorsque l'agent reçoit `SYSINFO`, il récupère des informations générales sur Windows grâce au module Python `platform`.
 
+Les informations retournées comprennent :
 
-L'agent peut se connecter à un serveur TCP, transmettre son identification et répondre à certains messages.
+- Le système d'exploitation.
+- La version du système.
+- Le nom de l'ordinateur.
 
+Ces informations sont transmises sous forme de réponse JSON de type `RESULT`.
 
+### 4.4 Diagnostics PowerShell contrôlés
 
-Les échanges suivants ont été testés avec succès :
+La version V3 a introduit le traitement des messages `CMD`.
 
+Pour limiter les opérations exécutables, l'agent n'accepte que trois diagnostics prédéfinis :
 
+| Diagnostic | Fonction |
+|---|---|
+| `date` | Afficher la date et l'heure du système |
+| `ordinateur` | Afficher le nom de l'ordinateur |
+| `windows` | Afficher la version de Windows |
 
-\- `HELLO` : identification de l'agent, de son système d'exploitation et de ses adresses IP.
+Le module `commandes_locales.py` exécute ces diagnostics avec PowerShell.
 
-\- `HELLO\_ACK` : confirmation d'identification envoyée par le serveur.
+Les commandes arbitraires et les arguments non autorisés sont rejetés.
 
-\- `PING` / `PONG` : contrôle de communication.
+Lorsqu'une demande est refusée, l'agent renvoie un message de type `ERROR` avec le code `COMMAND_NOT_ALLOWED`.
 
-\- `SYSINFO` / `RESULT` : transmission des informations générales sur le système Windows.
+Les tests Windows–Kali ont confirmé la réussite du diagnostic `date` et le rejet d'une commande inconnue.
 
+### 4.5 Gestion des erreurs réseau — Version V4
 
+La version V4 ajoute un mécanisme limité de nouvelles tentatives de connexion.
 
-Les messages sont délimités par des retours à la ligne pour permettre leur lecture sur une connexion TCP.
+Paramètres utilisés :
 
+- Nombre maximal de tentatives : **3**
+- Délai entre les tentatives : **3 secondes**
+- Délai maximal de connexion TCP : **10 secondes**
 
+Si le serveur refuse une connexion, l'agent affiche l'erreur et effectue une nouvelle tentative, jusqu'à atteindre la limite prévue.
 
-\### Registre Windows
+Après trois échecs, le programme s'arrête sans afficher de trace d'erreur Python non gérée.
 
+Ce fonctionnement a été vérifié en tentant de joindre `127.0.0.1` sur le port `59999`, sans serveur à l'écoute.
 
+Une fermeture normale de connexion par Kali termine la session sans provoquer de nouvelle tentative.
 
-La fonction locale `add\_registry\_key()` a été testée avec succès.
+Le mécanisme de reprise après coupure d'une session déjà établie n'a pas fait l'objet d'un test distinct.
 
+## 5. Fonctionnalités Windows spécifiques
 
+### 5.1 Modification locale du registre
 
-Valeur vérifiée :
+Le fichier `registry.py` utilise le module Python `winreg`.
 
+Il permet de créer une clé dans :
 
+`HKEY_CURRENT_USER\Software\MonProjetTP`
 
-`HKEY\_CURRENT\_USER\\Software\\MonProjetTP`
-
-
+La valeur suivante a été utilisée lors du test :
 
 `Status = Actif`
 
+La création et la lecture de cette valeur ont été validées localement.
 
+Dans `main.py`, le message `REGISTRY` retourne uniquement un statut informatif. Il ne déclenche pas une modification distante du registre.
 
-Dans la version actuelle de `main.py`, le message `REGISTRY` renvoie uniquement un statut de disponibilité et ne déclenche pas de modification à distance.
+### 5.2 Capture d'écran locale
 
+Le fichier `security_audit.py` utilise la bibliothèque Pillow et la fonction `ImageGrab.grab()`.
 
+Le module peut :
 
-\### Capture d'écran locale
+1. Capturer l'écran dans une session locale.
+2. Convertir l'image en PNG en mémoire.
+3. Encoder les données de l'image en Base64.
+4. Retourner le résultat dans une structure Python.
 
+Cette fonctionnalité a été testée localement.
 
+L'encodage Base64 ne constitue pas une méthode de chiffrement.
 
-Le module `security\_audit.py` contient une fonction capable de réaliser une capture locale et de l'encoder en Base64.
+Dans `main.py`, le message `SCREENSHOT` retourne un statut informatif et ne déclenche aucune capture distante.
 
+### 5.3 Audit des protections SAM
 
+Le fichier `sam_audit.py` contient une procédure expérimentale liée aux ruches du registre Windows `SAM` et `SYSTEM`.
 
-Cette fonction a été testée localement. Le message `SCREENSHOT` reçu par l'agent principal renvoie uniquement un statut et ne déclenche pas de capture à distance.
+Ces données sont sensibles et protégées par Windows.
 
+Les vérifications réalisées ont notamment montré que l'accès au fichier SAM était refusé depuis la session de terminal utilisée.
 
+La récupération effective des ruches SAM et SYSTEM n'a pas été démontrée.
 
-\## 5. Exécution de l'agent
+Le module expérimental n'est pas intégré au traitement des messages distants de l'agent principal.
 
+### 5.4 Vérification de Microsoft Defender
 
+Une vérification locale de Microsoft Defender a indiqué que les protections suivantes étaient activées au moment du test :
 
-Depuis le dossier principal du projet, avec l'environnement Python configuré :
+- Antivirus
+- Protection en temps réel
+- Protection contre les logiciels espions
 
+Ces résultats documentent l'état observé pendant l'essai. Ils ne constituent pas un audit complet de sécurité Windows.
 
+## 6. Compilation et exécution
+
+### 6.1 Exécution du script Python
+
+Depuis la racine du projet, dans CMD Windows :
 
 ```cmd
-
-.\\venv\\Scripts\\python.exe agents\\windows\\main.py --ip 192.168.109.129 --port 5001
-
+.\venv\Scripts\python.exe agents\windows\main.py --ip 192.168.109.129 --port 5001
 ```
 
+Le serveur de test doit être démarré sur Kali avant cette commande.
 
+### 6.2 Compilation avec PyInstaller
 
-Une version exécutable a également été générée avec PyInstaller :
+L'exécutable V4 a été généré avec PyInstaller.
 
+Commande utilisée :
 
+```cmd
+.\venv\Scripts\python.exe -m PyInstaller --onefile --clean --noconfirm --name agent-windows-v4 --paths . agents\windows\main.py
+```
 
-`dist\\agent-windows-v2.exe`
+Résultat :
 
+`dist\agent-windows-v4.exe`
 
+La compilation s'est terminée avec succès.
+
+### 6.3 Exécution de l'exécutable V4
 
 Commande de lancement :
 
-
-
 ```cmd
-
-dist\\agent-windows-v2.exe --ip 192.168.109.129 --port 5001
-
+.\dist\agent-windows-v4.exe --ip 192.168.109.129 --port 5001
 ```
 
+L'exécutable V4 a été testé avec succès sur une connexion TCP réelle entre Windows et Kali.
 
+Il a correctement traité les messages d'identification, de diagnostic et de contrôle utilisés par le serveur de test.
 
-Ces exemples nécessitent qu'un serveur compatible soit déjà démarré sur Kali.
+## 7. Résultats des tests
 
-
-
-\## 6. Résultats des tests
-
-
-
-Les tests suivants ont été réalisés :
-
-
-
-| Test | Résultat |
-
+| Test effectué | Résultat |
 |---|---|
+| Communication IP Windows–Kali | Réussi |
+| Connexion TCP Windows–Kali | Réussi |
+| Échange `HELLO` / `HELLO_ACK` | Réussi |
+| Échange `PING` / `PONG` | Réussi |
+| Échange `SYSINFO` / `RESULT` | Réussi |
+| Diagnostic PowerShell `date` | Réussi |
+| Refus d'une commande non autorisée | Réussi |
+| Gestion d'une connexion refusée | Réussi |
+| Trois tentatives espacées de 3 secondes | Réussi |
+| Compilation de l'exécutable V3 | Réussi |
+| Test TCP de l'exécutable V3 | Réussi |
+| Compilation de l'exécutable V4 | Réussi |
+| Test TCP de l'exécutable V4 | Réussi |
+| Modification locale du registre | Réussi |
+| Capture d'écran locale | Réussi |
+| Vérification des protections Defender | Réalisée |
+| Vérification des permissions SAM | Accès refusé |
+| Démarrage automatique dans la VM | Non validé |
+| Intégration au serveur principal | Non réalisée |
 
-| Connectivité réseau Windows–Kali | Réussi |
+Les résultats indiqués comme réussis correspondent uniquement aux scénarios effectivement testés.
 
-| Connexion TCP locale Windows | Réussi |
+## 8. Gestion des versions et GitHub
 
-| Échange HELLO / HELLO\_ACK | Réussi |
+Le projet utilise Git pour conserver les modifications du code.
 
-| Échange PING / PONG | Réussi |
+Dépôt :
 
-| Échange SYSINFO / RESULT | Réussi |
+`https://github.com/Idi18/projet-ethical-hacking`
 
-| Exécution du programme compilé | Réussi |
+Branche consacrée à l'intégration Windows :
 
-| Communication de l'exécutable avec Kali | Réussi |
+`windows-integration`
 
-| Modification et lecture locales du registre | Réussi |
+Parmi les commits réalisés :
 
-| Vérification des protections Microsoft Defender | Trois protections déclarées actives |
+- `b31a146` : intégration des diagnostics CMD contrôlés.
+- `372885d` : amélioration de la gestion des erreurs et des tentatives de connexion.
 
-| Consultation des permissions du fichier SAM | Accès refusé depuis le terminal utilisé |
+Les deux commits ont été envoyés sur GitHub.
 
+Les exécutables compilés sont disponibles localement dans le dossier `dist`. Leur présence dans le dépôt distant n'a pas été confirmée.
 
+## 9. Preuves et captures
 
-\## 7. Limites et travaux restants
+Des captures d'écran documentent les principales étapes du développement et des tests.
 
+| Numéro | Preuve |
+|---|---|
+| 23 | Communication TCP Windows–Kali côté serveur |
+| 24 | Communication TCP Windows–Kali côté agent |
+| 27 | Vérification des permissions SAM |
+| 28 | Vérification du registre Windows |
+| 29 | État des protections Microsoft Defender |
+| 30 | Gestion d'une connexion refusée |
+| 31 | Gestion d'une commande inconnue |
+| 32 | Diagnostics PowerShell locaux |
+| 33 | Refus d'une commande non autorisée |
+| 34 | Test CMD Windows–Kali |
+| 35 | Test de l'exécutable V3 côté Windows |
+| 36 | Validation de l'exécutable V3 côté Kali |
+| 37 | Test des trois tentatives de connexion V4 |
+| 38 | Test de l'exécutable V4 côté Windows |
 
+Les fichiers de preuve doivent être regroupés et leurs noms vérifiés avant la remise.
 
-\- Le serveur Kali utilisé pour les tests est un programme de démonstration, distinct du serveur principal du projet.
+Une capture constitue une preuve d'observation, mais ne garantit pas à elle seule la conformité de l'ensemble du projet.
 
-\- Les traitements `REGISTRY` et `SCREENSHOT` du programme principal ne réalisent aucune action distante.
+## 10. Limites et éléments à finaliser
 
-\- Les messages `CMD` et `SAM\_AUDIT` ne sont pas pris en charge dans la version actuelle de `main.py`.
+Plusieurs limites subsistent.
 
-\- L'intégration avec le serveur Kali définitif reste à réaliser.
+**Serveur principal :** le dossier `serveur` contient cinq fichiers Python vides dans la copie locale et sur la branche distante `origin/main`, au moment de la vérification. Le serveur de test Kali utilisé pour les validations est distinct du serveur principal.
 
-\- Un ancien processus `agent-windows.exe` fonctionne dans Windows et son origine doit encore être identifiée.
+**Intégration Linux :** la communication avec un client Debian de test a été vérifiée précédemment, mais l'intégration complète de l'agent Linux et du serveur principal reste à confirmer avec le coéquipier.
 
-\- Les fonctionnalités finales devront être comparées aux consignes officielles avant la remise.
+**Fonctions Windows sensibles :** les messages `REGISTRY` et `SCREENSHOT` ne déclenchent aucune action distante. Le module SAM expérimental n'est pas intégré au protocole distant.
 
+**Démarrage automatique :** le fonctionnement automatique au démarrage d'une machine virtuelle n'a pas été validé.
 
+**Sécurité réseau :** les échanges TCP du laboratoire ne disposent pas d'un mécanisme d'authentification et de chiffrement applicatif démontré. Les tests doivent rester dans l'environnement isolé et autorisé.
 
-\## 8. Preuves et captures
+**Ancien processus Windows :** un processus utilisant un ancien exécutable Windows avait été observé. Son origine et son mode de lancement n'ont pas été établis.
 
+**Conformité finale :** toutes les exigences officielles doivent encore être vérifiées lors de l'intégration des différentes composantes.
 
+## 11. Conclusion
 
-Les captures d'écran sont conservées séparément pour documenter les différentes étapes.
+Le développement de l'agent Windows a permis de mettre en œuvre et de tester la communication TCP/JSON entre Windows 11 et Kali Linux dans un environnement VMware.
 
+La version V4 dispose de fonctions d'identification, de collecte d'informations système, de diagnostics PowerShell contrôlés, de rejet des commandes non autorisées et de gestion limitée des tentatives de connexion.
 
+L'exécutable V4 a été compilé et testé avec succès.
 
-Parmi les preuves réalisées :
+Les fonctions locales liées au registre Windows, à la capture d'écran et à certaines protections du système ont également été étudiées.
 
-
-
-\- `21\_test\_tcp\_executable\_v2\_serveur.png`
-
-\- `22\_test\_tcp\_executable\_v2\_agent.png`
-
-\- `23\_test\_tcp\_windows\_kali\_serveur.png`
-
-\- `24\_test\_tcp\_windows\_kali\_agent.png`
-
-\- `27\_audit\_permissions\_sam\_windows.png`
-
-\- `28\_verification\_registre\_windows.png`
-
-\- `29\_verification\_defender\_windows.png`
-
-
-
-Les captures constituent des preuves des tests effectués, et non une validation automatique de toutes les exigences du projet.
-
-
-
-\## 9. Conclusion
-
-
-
-La partie Windows dispose d'un agent Python capable de communiquer avec un serveur TCP/JSON. Sa version exécutable a été compilée et testée avec succès, notamment lors d'une communication avec Kali Linux dans le laboratoire VMware.
-
-
-
-Les fonctions locales du registre, de capture d'écran et plusieurs contrôles de sécurité ont également été examinés. La prochaine étape consiste à vérifier la conformité aux exigences finales et à intégrer l'agent au serveur principal du groupe.
-
+Le travail restant concerne principalement l'intégration au serveur principal, la coordination avec l'agent Linux, la vérification des exigences officielles et la préparation de la remise finale.
