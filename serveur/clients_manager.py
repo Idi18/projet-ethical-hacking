@@ -1,25 +1,32 @@
 
 from datetime import datetime
+from threading import Lock
 from uuid import uuid4
 
 
 class ClientsManager:
     def __init__(self):
         self.clients = {}
+        self.verrou = Lock()
 
     def enregistrer(self, nom, adresse, os_name, ips=None):
-        """Enregistre un client et retourne son identifiant."""
+        """Enregistre un client de maniere securisee."""
         client_id = uuid4().hex[:8]
 
-        self.clients[client_id] = {
+        client = {
             "id": client_id,
             "nom": nom,
             "adresse": adresse,
             "os": os_name,
-            "ips": ips or [],
-            "connecte_le": datetime.now().isoformat(timespec="seconds"),
+            "ips": list(ips) if ips else [],
+            "connecte_le": datetime.now().isoformat(
+                timespec="seconds"
+            ),
             "statut": "connecte",
         }
+
+        with self.verrou:
+            self.clients[client_id] = client
 
         print(
             f"[CLIENT] Connexion : {nom} ({os_name}) "
@@ -31,26 +38,35 @@ class ClientsManager:
 
     def deconnecter(self, client_id):
         """Marque un client comme deconnecte."""
-        client = self.clients.get(client_id)
+        with self.verrou:
+            client = self.clients.get(client_id)
 
-        if client is None:
-            return False
+            if client is None:
+                return False
 
-        client["statut"] = "deconnecte"
-        client["deconnecte_le"] = datetime.now().isoformat(
-            timespec="seconds"
-        )
+            client["statut"] = "deconnecte"
+            client["deconnecte_le"] = datetime.now().isoformat(
+                timespec="seconds"
+            )
+            nom = client["nom"]
 
         print(
-            f"[CLIENT] Deconnexion : {client['nom']} "
+            f"[CLIENT] Deconnexion : {nom} "
             f"| ID={client_id}",
             flush=True,
         )
         return True
 
     def liste_clients(self, connectes_seulement=False):
-        """Retourne la liste des clients connus."""
-        clients = list(self.clients.values())
+        """Retourne une copie de la liste des clients."""
+        with self.verrou:
+            clients = [
+                {
+                    **client,
+                    "ips": list(client["ips"]),
+                }
+                for client in self.clients.values()
+            ]
 
         if connectes_seulement:
             clients = [
@@ -62,4 +78,9 @@ class ClientsManager:
 
     def nombre_connectes(self):
         """Compte les clients actuellement connectes."""
-        return len(self.liste_clients(connectes_seulement=True))
+        with self.verrou:
+            return sum(
+                1
+                for client in self.clients.values()
+                if client["statut"] == "connecte"
+            )

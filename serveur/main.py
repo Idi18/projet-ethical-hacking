@@ -1,6 +1,8 @@
 
 import json
 import socket
+from concurrent.futures import ThreadPoolExecutor
+from threading import BoundedSemaphore
 
 from shared.protocol import (
     MessageType,
@@ -17,19 +19,20 @@ from serveur.command_interpreter import CommandInterpreter
 HOST = "192.168.109.129"
 PORT = 5001
 MAX_MESSAGE_SIZE = 1024 * 1024
+MAX_CLIENTS = 4
 
 
 def envoyer(sock, message):
-    """Envoie un message JSON selon le protocole commun."""
+    """Envoie un message JSON."""
     sock.sendall(encode_message(message))
 
 
 def recevoir(fichier):
-    """Lit et valide un message JSON termine par une ligne."""
+    """Recoit et valide un message JSON."""
     ligne = fichier.readline(MAX_MESSAGE_SIZE + 1)
 
     if not ligne:
-        raise ConnectionError("Le client a ferme la connexion")
+        raise ConnectionError("Connexion fermee par le client")
 
     if len(ligne) > MAX_MESSAGE_SIZE:
         raise ValueError("Message trop volumineux")
@@ -40,7 +43,7 @@ def recevoir(fichier):
     message = json.loads(ligne.decode("utf-8"))
 
     if not isinstance(message, dict):
-        raise ValueError("Le message doit etre un objet JSON")
+        raise ValueError("Message JSON invalide")
 
     if not isinstance(message.get("type"), str):
         raise ValueError("Type de message manquant")
@@ -49,11 +52,12 @@ def recevoir(fichier):
 
 
 def diagnostic(sock, fichier, message, interpreteur):
-    """Envoie un diagnostic et controle sa reponse."""
+    """Envoie un diagnostic autorise et valide la reponse."""
     envoyer(sock, message)
 
     print(
-        f"[ENVOI] Type={message['type']} | ID={message['id']}",
+        f"[ENVOI] Type={message['type']} "
+        f"| ID={message['id']}",
         flush=True,
     )
 
@@ -70,7 +74,7 @@ def diagnostic(sock, fichier, message, interpreteur):
 
 
 def traiter_client(sock, adresse, gestionnaire, interpreteur):
-    """Traite une session de diagnostic."""
+    """Traite une session client dans son propre thread."""
     client_id = None
 
     try:
@@ -107,19 +111,32 @@ def traiter_client(sock, adresse, gestionnaire, interpreteur):
             )
 
             print(
-                f"[SERVEUR] HELLO accepte | Client={client_id}",
+                f"[SERVEUR] HELLO accepte "
+                f"| Client={client_id}",
                 flush=True,
             )
 
-            ping = interpreteur.preparer_ping()
-            diagnostic(sock, fichier, ping, interpreteur)
+            diagnostic(
+                sock,
+                fichier,
+                interpreteur.preparer_ping(),
+                interpreteur,
+            )
 
-            sysinfo = interpreteur.preparer_sysinfo()
-            diagnostic(sock, fichier, sysinfo, interpreteur)
+            diagnostic(
+                sock,
+                fichier,
+                interpreteur.preparer_sysinfo(),
+                interpreteur,
+            )
 
             if "windows" in systeme.lower():
-                commande = interpreteur.preparer_commande("date")
-                diagnostic(sock, fichier, commande, interpreteur)
+                diagnostic(
+                    sock,
+                    fichier,
+                    interpreteur.preparer_commande("date"),
+                    interpreteur,
+                )
 
             print(
                 f"[SUCCES] Session de diagnostic terminee "
@@ -127,7 +144,7 @@ def traiter_client(sock, adresse, gestionnaire, interpreteur):
                 flush=True,
             )
 
-    except (OSError, ValueError, TypeError, KeyError) as erreur:
+    except Exception as erreur:
         gerer_erreur(erreur, "session_client")
 
     finally:
@@ -136,57 +153,105 @@ def traiter_client(sock, adresse, gestionnaire, interpreteur):
 
         sock.close()
 
+        print(
+            f"[SERVEUR] Clients connectes : "
+            f"{gestionnaire.nombre_connectes()}",
+            flush=True,
+        )
+
+
+def session_thread(
+    sock,
+    adresse,
+    gestionnaire,
+    interpreteur,
+    places,
+):
+    """Execute la session et libere sa place."""
+    try:
+        traiter_client(
+            sock,
+            adresse,
+            gestionnaire,
+            interpreteur,
+        )
+    finally:
+        places.release()
+
 
 def main():
-    """Demarre le serveur et accepte les sessions successives."""
+    """Serveur TCP avec plusieurs clients simultanes."""
     gestionnaire = ClientsManager()
     interpreteur = CommandInterpreter()
 
-    print("[SERVEUR] Demarrage du serveur Kali V4", flush=True)
+    places = BoundedSemaphore(MAX_CLIENTS)
+
+    print("[SERVEUR] Demarrage Kali V5", flush=True)
+    print(
+        f"[SERVEUR] Maximum clients simultanes : "
+        f"{MAX_CLIENTS}",
+        flush=True,
+    )
+
     interpreteur.afficher_commandes()
 
     try:
-        with SocketServer(HOST, PORT) as serveur:
-            while True:
-                connexion = serveur.accepter_client()
+        with ThreadPoolExecutor(
+            max_workers=MAX_CLIENTS
+        ) as executant:
 
-                if connexion is None:
-                    continue
+            with SocketServer(HOST, PORT) as serveur:
 
-                sock, adresse = connexion
+                while True:
+                    connexion = serveur.accepter_client()
 
-                print(
-                    f"[SERVEUR] Connexion depuis "
-                    f"{adresse[0]}:{adresse[1]}",
-                    flush=True,
-                )
+                    if connexion is None:
+                        continue
 
-                traiter_client(
-                    sock,
-                    adresse,
-                    gestionnaire,
-                    interpreteur,
-                )
+                    sock, adresse = connexion
 
-                print(
-                    f"[SERVEUR] Clients connectes : "
-                    f"{gestionnaire.nombre_connectes()}",
-                    flush=True,
-                )
+                    if not places.acquire(blocking=False):
+                        print(
+                            "[SERVEUR] Limite de clients atteinte",
+                            flush=True,
+                        )
+                        sock.close()
+                        continue
 
-                print(
-                    "[SERVEUR] Pret pour une nouvelle connexion",
-                    flush=True,
-                )
+                    print(
+                        f"[SERVEUR] Connexion depuis "
+                        f"{adresse[0]}:{adresse[1]}",
+                        flush=True,
+                    )
+
+                    try:
+                        executant.submit(
+                            session_thread,
+                            sock,
+                            adresse,
+                            gestionnaire,
+                            interpreteur,
+                            places,
+                        )
+                    except Exception:
+                        places.release()
+                        sock.close()
+                        raise
 
     except KeyboardInterrupt:
-        print("\n[SERVEUR] Arret demande", flush=True)
+        print(
+            "\n[SERVEUR] Arret demande",
+            flush=True,
+        )
 
     except OSError as erreur:
         gerer_erreur(erreur, "demarrage_serveur")
 
     finally:
-        print("[SERVEUR] Arret du serveur Kali V4", flush=True)
+        print(
+            "[SERVEUR] Arret du serveur Kali V5",
+            flush=True,
+        )
 
 
 if __name__ == "__main__":
