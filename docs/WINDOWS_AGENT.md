@@ -306,33 +306,28 @@ Des captures d'écran documentent les principales étapes du développement et d
 Les fichiers de preuve doivent être regroupés et leurs noms vérifiés avant la remise.
 
 Une capture constitue une preuve d'observation, mais ne garantit pas à elle seule la conformité de l'ensemble du projet.
-
 ## 10. Limites et éléments à finaliser
 
-Plusieurs limites subsistent.
+**Serveur principal :** le serveur Kali V5 est désormais développé et fonctionnel. Il comprend les modules de gestion des sockets, des clients, des erreurs et d'interprétation des commandes. Le 23 novembre 2026, les tests ont confirmé la communication avec Windows ainsi que le traitement de deux connexions TCP simultanées par threads. Un verrou protège les opérations sur le dictionnaire partagé des clients.
 
-**Serveur principal :** le dossier `serveur` contient cinq fichiers Python vides dans la copie locale et sur la branche distante `origin/main`, au moment de la vérification. Le serveur de test Kali utilisé pour les validations est distinct du serveur principal.
+**Intégration Linux :** l'intégration complète de l'agent Debian reste à effectuer avec le second membre du groupe. La compatibilité avec le protocole commun et les tests du système complet restent à valider.
 
-**Intégration Linux :** la communication avec un client Debian de test a été vérifiée précédemment, mais l'intégration complète de l'agent Linux et du serveur principal reste à confirmer avec le coéquipier.
+**Fonctions Windows sensibles :** les modules de registre et de capture d'écran ont été testés localement. Les messages `REGISTRY` et `SCREENSHOT` du programme principal retournent uniquement des informations d'état. Le module SAM demeure expérimental et aucune récupération effective des données protégées n'a été démontrée.
 
-**Fonctions Windows sensibles :** les messages `REGISTRY` et `SCREENSHOT` ne déclenchent aucune action distante. Le module SAM expérimental n'est pas intégré au protocole distant.
+**Démarrage automatique :** le lancement automatique de l'agent Windows dans la machine virtuelle n'a pas été validé. Les tests actuels utilisent un démarrage manuel.
 
-**Démarrage automatique :** le fonctionnement automatique au démarrage d'une machine virtuelle n'a pas été validé.
+**Sécurité réseau :** les communications TCP/JSON ne disposent pas encore d'une authentification applicative ou d'un chiffrement démontré. Les expérimentations restent limitées au laboratoire VMware autorisé.
 
-**Sécurité réseau :** les échanges TCP du laboratoire ne disposent pas d'un mécanisme d'authentification et de chiffrement applicatif démontré. Les tests doivent rester dans l'environnement isolé et autorisé.
-
-**Ancien processus Windows :** un processus utilisant un ancien exécutable Windows avait été observé. Son origine et son mode de lancement n'ont pas été établis.
-
-**Conformité finale :** toutes les exigences officielles doivent encore être vérifiées lors de l'intégration des différentes composantes.
+**Conformité finale :** la vérification des exigences officielles, l'intégration Debian et les tests finaux du groupe restent nécessaires avant la remise.
 
 ## 11. Conclusion
 
-Le développement de l'agent Windows a permis de mettre en œuvre et de tester la communication TCP/JSON entre Windows 11 et Kali Linux dans un environnement VMware.
+Le développement de l'agent Windows V4 et du serveur Kali V5 a permis de mettre en œuvre une architecture client-serveur utilisant les sockets TCP et des messages JSON dans VMware.
 
-La version V4 dispose de fonctions d'identification, de collecte d'informations système, de diagnostics PowerShell contrôlés, de rejet des commandes non autorisées et de gestion limitée des tentatives de connexion.
+L'agent Windows assure l'identification, la transmission d'informations système, l'exécution de diagnostics prédéfinis et la gestion des erreurs réseau.
 
-L'exécutable V4 a été compilé et testé avec succès.
+Le serveur Kali V5 prend en charge les connexions simultanées par threads. Les tests du 23 novembre 2026 ont démontré le fonctionnement de deux sessions TCP parallèles, avec suivi des connexions et des déconnexions.
 
-Les fonctions locales liées au registre Windows, à la capture d'écran et à certaines protections du système ont également été étudiées.
+Les composants Windows et Kali sont publiés sur la branche `windows-integration` du dépôt GitHub, avec le commit `cb77878` pour la version V5.
 
-Le travail restant concerne principalement l'intégration au serveur principal, la coordination avec l'agent Linux, la vérification des exigences officielles et la préparation de la remise finale.
+La prochaine étape est l'intégration de l'agent Debian, suivie des vérifications de conformité, de la sélection des captures importantes et de la préparation de la remise finale.
