@@ -1,0 +1,193 @@
+
+import json
+import socket
+
+from shared.protocol import (
+    MessageType,
+    encode_message,
+    hello_ack,
+)
+
+from serveur.socket_server import SocketServer
+from serveur.error_handler import gerer_erreur
+from serveur.clients_manager import ClientsManager
+from serveur.command_interpreter import CommandInterpreter
+
+
+HOST = "192.168.109.129"
+PORT = 5001
+MAX_MESSAGE_SIZE = 1024 * 1024
+
+
+def envoyer(sock, message):
+    """Envoie un message JSON selon le protocole commun."""
+    sock.sendall(encode_message(message))
+
+
+def recevoir(fichier):
+    """Lit et valide un message JSON termine par une ligne."""
+    ligne = fichier.readline(MAX_MESSAGE_SIZE + 1)
+
+    if not ligne:
+        raise ConnectionError("Le client a ferme la connexion")
+
+    if len(ligne) > MAX_MESSAGE_SIZE:
+        raise ValueError("Message trop volumineux")
+
+    if not ligne.endswith(b"\n"):
+        raise ValueError("Message JSON incomplet")
+
+    message = json.loads(ligne.decode("utf-8"))
+
+    if not isinstance(message, dict):
+        raise ValueError("Le message doit etre un objet JSON")
+
+    if not isinstance(message.get("type"), str):
+        raise ValueError("Type de message manquant")
+
+    return message
+
+
+def diagnostic(sock, fichier, message, interpreteur):
+    """Envoie un diagnostic et controle sa reponse."""
+    envoyer(sock, message)
+
+    print(
+        f"[ENVOI] Type={message['type']} | ID={message['id']}",
+        flush=True,
+    )
+
+    reponse = recevoir(fichier)
+
+    interpreteur.verifier_reponse(
+        reponse,
+        identifiant_attendu=message["id"],
+    )
+
+    interpreteur.afficher_reponse(reponse)
+
+    return reponse
+
+
+def traiter_client(sock, adresse, gestionnaire, interpreteur):
+    """Traite une session de diagnostic."""
+    client_id = None
+
+    try:
+        sock.settimeout(15)
+
+        with sock.makefile("rb") as fichier:
+            premier_message = recevoir(fichier)
+
+            if premier_message["type"] != MessageType.HELLO.value:
+                raise ValueError("Message HELLO attendu")
+
+            donnees = premier_message.get("data", {})
+
+            if not isinstance(donnees, dict):
+                raise ValueError("Informations HELLO invalides")
+
+            nom = str(donnees.get("name", "Agent inconnu"))
+            systeme = str(donnees.get("os", "Inconnu"))
+            ips = donnees.get("ips", [])
+
+            if not isinstance(ips, list):
+                ips = []
+
+            client_id = gestionnaire.enregistrer(
+                nom,
+                adresse[0],
+                systeme,
+                ips,
+            )
+
+            envoyer(
+                sock,
+                hello_ack(client_id, "Serveur Kali"),
+            )
+
+            print(
+                f"[SERVEUR] HELLO accepte | Client={client_id}",
+                flush=True,
+            )
+
+            ping = interpreteur.preparer_ping()
+            diagnostic(sock, fichier, ping, interpreteur)
+
+            sysinfo = interpreteur.preparer_sysinfo()
+            diagnostic(sock, fichier, sysinfo, interpreteur)
+
+            if "windows" in systeme.lower():
+                commande = interpreteur.preparer_commande("date")
+                diagnostic(sock, fichier, commande, interpreteur)
+
+            print(
+                f"[SUCCES] Session de diagnostic terminee "
+                f"| Client={client_id}",
+                flush=True,
+            )
+
+    except (OSError, ValueError, TypeError, KeyError) as erreur:
+        gerer_erreur(erreur, "session_client")
+
+    finally:
+        if client_id is not None:
+            gestionnaire.deconnecter(client_id)
+
+        sock.close()
+
+
+def main():
+    """Demarre le serveur et accepte les sessions successives."""
+    gestionnaire = ClientsManager()
+    interpreteur = CommandInterpreter()
+
+    print("[SERVEUR] Demarrage du serveur Kali V4", flush=True)
+    interpreteur.afficher_commandes()
+
+    try:
+        with SocketServer(HOST, PORT) as serveur:
+            while True:
+                connexion = serveur.accepter_client()
+
+                if connexion is None:
+                    continue
+
+                sock, adresse = connexion
+
+                print(
+                    f"[SERVEUR] Connexion depuis "
+                    f"{adresse[0]}:{adresse[1]}",
+                    flush=True,
+                )
+
+                traiter_client(
+                    sock,
+                    adresse,
+                    gestionnaire,
+                    interpreteur,
+                )
+
+                print(
+                    f"[SERVEUR] Clients connectes : "
+                    f"{gestionnaire.nombre_connectes()}",
+                    flush=True,
+                )
+
+                print(
+                    "[SERVEUR] Pret pour une nouvelle connexion",
+                    flush=True,
+                )
+
+    except KeyboardInterrupt:
+        print("\n[SERVEUR] Arret demande", flush=True)
+
+    except OSError as erreur:
+        gerer_erreur(erreur, "demarrage_serveur")
+
+    finally:
+        print("[SERVEUR] Arret du serveur Kali V4", flush=True)
+
+
+if __name__ == "__main__":
+    main()
