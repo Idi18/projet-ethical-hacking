@@ -1,6 +1,14 @@
-
-
 \# Guide d'intégration — Windows, Kali et Debian
+
+
+
+\*\*Projet :\*\* Ethical Hacking — Client/serveur Python  
+
+\*\*Mise à jour :\*\* 23 novembre 2026  
+
+\*\*Branche GitHub :\*\* `windows-integration`  
+
+\*\*Dernier commit vérifié :\*\* `3e3c708`
 
 
 
@@ -8,19 +16,23 @@
 
 
 
-Ce document présente les informations nécessaires pour intégrer
-
-l'agent Windows V4 au serveur Kali du projet Ethical Hacking.
+Ce document présente l'architecture, les échanges réseau, les tests effectués et les étapes restantes pour intégrer les trois composants du projet :
 
 
 
-Les échanges sont réalisés dans un laboratoire VMware isolé,
+\- L'agent Windows V4.
 
-au moyen de sockets TCP et de messages JSON.
+\- Le serveur Kali V4.
+
+\- L'agent Debian développé par l'autre membre du groupe.
 
 
 
-L'intégration au serveur principal reste à effectuer.
+Les communications reposent sur des sockets TCP et des messages JSON dans un laboratoire VMware.
+
+
+
+\*\*État actuel :\*\* l'intégration Windows–Kali V4 a été réalisée et testée avec succès le 23 novembre 2026. L'intégration de Debian reste à valider.
 
 
 
@@ -32,31 +44,29 @@ L'intégration au serveur principal reste à effectuer.
 
 |---|---|---|
 
-| Windows 11 hôte | 192.168.109.1 | Agent Windows |
+| Windows principal | 192.168.109.1 | Développement, GitHub et transfert des fichiers |
 
-| Kali Linux | 192.168.109.129 | Serveur |
+| Windows 11 virtuel | 192.168.109.134 | Agent Windows testé |
 
-| Debian Linux | 192.168.109.133 | Client Linux de test |
+| Kali Linux | 192.168.109.129 | Serveur principal |
 
-
-
-Réseau : VMware VMnet1 (Host-only)
-
-Masque : 255.255.255.0
-
-Port utilisé pendant les tests : 5001
+| Debian Linux | 192.168.109.133 | Client Linux à intégrer |
 
 
 
-Le port par défaut défini dans shared/protocol.py est 5000.
+\*\*Réseau de laboratoire :\*\* VMware VMnet1 (Host-only)  
 
-Il faut donc configurer explicitement le port 5001 pour
+\*\*Masque :\*\* 255.255.255.0  
 
-reproduire les tests existants.
+\*\*Port utilisé :\*\* 5001
 
 
 
-\## 3. Fichiers concernés
+Le protocole commun définit initialement le port 5000, mais les tests d'intégration ont été réalisés sur le port 5001.
+
+
+
+\## 3. Fichiers du projet
 
 
 
@@ -64,15 +74,35 @@ reproduire les tests existants.
 
 
 
-\- agents/windows/main.py
+\- `agents/windows/main.py`
 
-\- agents/windows/commandes\_locales.py
+\- `agents/windows/commandes\_locales.py`
 
-\- agents/windows/registry.py
+\- `agents/windows/registry.py`
 
-\- agents/windows/security\_audit.py
+\- `agents/windows/security\_audit.py`
 
-\- agents/windows/sam\_audit.py
+\- `agents/windows/sam\_audit.py`
+
+
+
+\### Serveur Kali V4
+
+
+
+\- `serveur/main.py`
+
+\- `serveur/socket\_server.py`
+
+\- `serveur/command\_interpreter.py`
+
+\- `serveur/error\_handler.py`
+
+\- `serveur/clients\_manager.py`
+
+
+
+Ces cinq modules sont désormais développés et intégrés dans le serveur V4.
 
 
 
@@ -80,37 +110,19 @@ reproduire les tests existants.
 
 
 
-\- shared/protocol.py
+\- `shared/protocol.py`
 
 
 
-\### Serveur principal prévu
+Ce fichier définit les types de messages et les fonctions utilisées pour construire et encoder les messages JSON.
 
 
 
-\- serveur/main.py
-
-\- serveur/socket\_server.py
-
-\- serveur/command\_interpreter.py
-
-\- serveur/error\_handler.py
-
-\- serveur/clients\_manager.py
+\### Agent Debian
 
 
 
-Au moment de la vérification, ces cinq fichiers du serveur
-
-principal étaient vides dans origin/main.
-
-
-
-Le serveur test\_serveur\_kali.py a été utilisé séparément
-
-pour les validations réseau. Il ne remplace pas encore
-
-le serveur principal.
+Les fichiers définitifs et leur compatibilité avec le protocole commun restent à vérifier lors de l'intégration du travail du second membre.
 
 
 
@@ -118,89 +130,91 @@ le serveur principal.
 
 
 
-Format général :
+Les messages suivent généralement cette structure :
 
 
+
+```json
 
 {
 
-&#x20;   "type": "nom\_du\_message",
+&#x20; "type": "nom\_du\_message",
 
-&#x20;   "id": "identifiant\_unique",
+&#x20; "id": "identifiant\_unique",
 
-&#x20;   "data": {}
+&#x20; "data": {}
 
 }
 
-
-
-Chaque message est encodé en UTF-8 et terminé par un
-
-caractère de nouvelle ligne.
+```
 
 
 
-Les fonctions de création, encodage et décodage sont
-
-définies dans shared/protocol.py.
+Chaque message est encodé en UTF-8 et se termine par un retour à la ligne.
 
 
 
-Le serveur doit respecter les identifiants de messages
-
-pour associer chaque réponse à sa demande.
+Le serveur V4 lit les messages, contrôle leur format général et associe les réponses aux demandes grâce à leur identifiant.
 
 
 
-\## 5. Identification de l'agent
+Une limite de taille est également appliquée lors de la réception des messages par le serveur V4.
 
 
 
-\### Étape 1 : HELLO
+\## 5. Identification des agents
 
 
 
-Lorsqu'il se connecte, Windows envoie un message HELLO
+\### HELLO
 
-contenant notamment :
+
+
+L'agent Windows se connecte au serveur et transmet un message `hello` contenant notamment :
 
 
 
 \- Le nom de l'agent.
 
-\- Le système d'exploitation.
+\- Son système d'exploitation.
 
 \- Les adresses IPv4 détectées.
 
-\- La version du protocole annoncée.
+\- La version déclarée du protocole.
 
 
 
-\### Étape 2 : HELLO\_ACK
+\### HELLO\_ACK
 
 
 
-Le serveur répond avec un message HELLO\_ACK.
+Le serveur répond par `hello\_ack` et attribue un identifiant au client.
 
 
 
-Son champ data contient notamment :
+Exemple du format des données :
 
 
+
+```json
 
 {
 
-&#x20;   "agent\_id": "identifiant-attribue",
+&#x20; "agent\_id": "identifiant-attribue",
 
-&#x20;   "server": "nom-du-serveur"
+&#x20; "server": "Serveur Kali"
 
 }
 
+```
 
 
-L'agent Windows attend cette confirmation avant de
 
-traiter les autres demandes.
+Le module `clients\_manager.py` enregistre les clients et suit leurs déconnexions.
+
+
+
+\*\*Résultat du 23 novembre 2026 :\*\* identification et attribution d'identifiant réussies avec l'agent Windows V4.
 
 
 
@@ -212,23 +226,19 @@ traiter les autres demandes.
 
 |---|---|
 
-| ping | pong |
+| `ping` | `pong` |
 
-| sysinfo | result |
+| `sysinfo` | `result` |
 
-| cmd autorisée | result |
+| `cmd` autorisée | `result` |
 
-| cmd interdite | error |
+| `cmd` interdite | `error` |
 
-| registry | result informatif |
+| `registry` | `result` informatif |
 
-| screenshot | result informatif |
+| `screenshot` | `result` informatif |
 
-| Type inconnu | error |
-
-
-
-Les réponses conservent l'identifiant de la demande.
+| Type inconnu | `error` |
 
 
 
@@ -236,101 +246,53 @@ Les réponses conservent l'identifiant de la demande.
 
 
 
-La commande cmd accepte uniquement :
+L'agent Windows V4 accepte les diagnostics suivants :
 
 
 
-\- date
+\- `date`
 
-\- ordinateur
+\- `ordinateur`
 
-\- windows
-
-
-
-Le champ args doit être une liste vide.
+\- `windows`
 
 
 
-Exemple de demande :
+Exemple :
 
 
+
+```json
 
 {
 
-&#x20;   "type": "cmd",
+&#x20; "type": "cmd",
 
-&#x20;   "id": "test-date-001",
+&#x20; "id": "test-date-001",
 
-&#x20;   "data": {
+&#x20; "data": {
 
-&#x20;       "command": "date",
+&#x20;   "command": "date",
 
-&#x20;       "args": \[]
+&#x20;   "args": \[]
 
-&#x20;   }
-
-}
-
-
-
-Exemple de résultat :
-
-
-
-{
-
-&#x20;   "type": "result",
-
-&#x20;   "id": "test-date-001",
-
-&#x20;   "data": {
-
-&#x20;       "ok": true,
-
-&#x20;       "payload": {
-
-&#x20;           "commande": "date",
-
-&#x20;           "diagnostic": {
-
-&#x20;               "ok": true,
-
-&#x20;               "sortie": "2026-11-22 19:50:12",
-
-&#x20;               "erreur": "",
-
-&#x20;               "code\_retour": 0
-
-&#x20;           }
-
-&#x20;       }
-
-&#x20;   }
+&#x20; }
 
 }
 
-
-
-La date ci-dessus est un exemple issu du format de sortie,
-
-et non une valeur attendue pour les prochains tests.
+```
 
 
 
-Toute commande non autorisée doit produire une réponse
-
-de type error avec le code COMMAND\_NOT\_ALLOWED.
+L'agent Windows limite les diagnostics aux commandes explicitement autorisées.
 
 
 
-Le serveur ne doit pas considérer les commandes arbitraires
-
-comme prises en charge par cet agent.
+Le refus d'une commande non autorisée a été testé lors des précédents essais. Le test final du serveur Kali V4 du 23 novembre a principalement validé la commande `date`.
 
 
 
-\## 7. Fonctions limitées aux tests locaux
+\## 7. Fonctionnalités Windows encore limitées
 
 
 
@@ -338,23 +300,19 @@ comme prises en charge par cet agent.
 
 
 
-Le fichier registry.py a été testé localement avec :
+Le module `registry.py` a été testé localement avec la clé :
 
 
 
-HKEY\_CURRENT\_USER\\Software\\MonProjetTP
+`HKEY\_CURRENT\_USER\\Software\\MonProjetTP`
 
 
 
-Valeur :
-
-Status = Actif
+Valeur : `Status = Actif`.
 
 
 
-Une demande distante registry renvoie uniquement
-
-un état informatif.
+Une demande distante `registry` retourne actuellement des informations d'état ; l'exécution distante de modifications du registre n'a pas été démontrée.
 
 
 
@@ -362,71 +320,97 @@ un état informatif.
 
 
 
-Le module security\_audit.py a été testé localement.
+Le module `security\_audit.py` a été testé localement.
 
 
 
-Une demande distante screenshot renvoie uniquement
-
-un état informatif ; aucune image n'est transmise
-
-par le programme principal.
+Le programme principal ne transmet pas d'image lors d'une demande distante `screenshot` : il retourne uniquement une réponse informative.
 
 
 
-\### SAM
+\### Audit SAM
 
 
 
-Le module sam\_audit.py est expérimental.
+Le module `sam\_audit.py` est expérimental.
 
 
 
-La récupération effective des ruches protégées SAM
-
-et SYSTEM n'a pas été démontrée.
+La récupération effective des ruches protégées SAM et SYSTEM n'a pas été démontrée. Aucune extraction distante de ces informations n'est intégrée au fonctionnement validé.
 
 
 
-Aucune récupération distante de ces données n'est
-
-intégrée au programme principal.
+Ces limites doivent être indiquées dans le rapport final.
 
 
 
-\## 8. Gestion des erreurs réseau
+\## 8. Gestion des erreurs et des connexions
 
 
 
-Windows V4 utilise les paramètres suivants :
+\### Agent Windows V4
 
 
 
-MAX\_TENTATIVES = 3
-
-DELAI\_RECONNEXION = 3
+Paramètres utilisés :
 
 
 
-En cas de refus de connexion, l'agent tente une
+\- `MAX\_TENTATIVES = 3`
 
-nouvelle connexion dans la limite définie.
-
-
-
-Après trois échecs, il s'arrête.
+\- `DELAI\_RECONNEXION = 3`
 
 
 
-Une déconnexion normale du serveur met fin à la session.
+En cas de refus de connexion, l'agent effectue au maximum trois tentatives.
 
 
 
-Le démarrage reste manuel.
+Une déconnexion normale termine la session.
 
 
 
-\## 9. Lancement des tests
+\### Serveur Kali V4
+
+
+
+Le serveur dispose de :
+
+
+
+\- `socket\_server.py` : écoute et acceptation des connexions TCP.
+
+\- `error\_handler.py` : classification et journalisation des erreurs.
+
+\- `clients\_manager.py` : enregistrement et déconnexion des clients.
+
+\- `command\_interpreter.py` : préparation des diagnostics et validation des réponses.
+
+\- `main.py` : orchestration des sessions.
+
+
+
+Les connexions successives sont prises en charge. Le traitement simultané de plusieurs clients n'a pas été démontré.
+
+
+
+\### Démarrage automatique Windows
+
+
+
+Le lancement de l'agent reste manuel dans les tests validés.
+
+
+
+La consultation de la clé de démarrage utilisateur n'a révélé que OneDrive. La recherche d'une tâche planifiée correspondant à l'agent n'a pas encore établi l'existence d'un démarrage automatique.
+
+
+
+Cette exigence reste à vérifier.
+
+
+
+\## 9. Lancement du serveur et de l'agent
 
 
 
@@ -434,115 +418,199 @@ Le démarrage reste manuel.
 
 
 
-Dans le terminal Kali :
+Depuis le répertoire du projet :
 
 
 
-python3 \~/projet-ethical-hacking/test\_serveur\_kali.py
+```bash
 
+cd \~/projet-ethical-hacking-github
 
+python3 -m serveur.main
 
-Cette commande suppose que le fichier de test est
+```
 
-présent dans le dossier indiqué.
 
 
+Le serveur doit notamment afficher :
 
-Le serveur de test doit afficher :
 
 
+```text
 
-\[KALI] Serveur en attente sur 192.168.109.129:5001
+\[SERVEUR] Demarrage du serveur Kali V4
 
+\[SERVEUR] En attente sur 192.168.109.129:5001
 
+```
 
-\### Sur Windows
 
 
+\### Sur la machine virtuelle Windows 11
 
-Dans CMD Windows, depuis la racine du projet :
 
 
+Depuis le dossier contenant l'exécutable :
 
-.\\dist\\agent-windows-v4.exe --ip 192.168.109.129 --port 5001
 
 
+```cmd
 
-L'agent se connecte au serveur et traite les
+agent-windows-v4.exe --ip 192.168.109.129 --port 5001
 
-demandes prévues par le programme de test.
+```
 
 
 
-\## 10. Tests déjà réalisés
+L'agent contacte alors le serveur et traite les demandes de diagnostic prévues.
 
 
 
-Les validations suivantes ont été observées :
+\## 10. Tests réalisés
 
 
 
-\- Connexion TCP Windows-Kali.
+\### Tests antérieurs
 
-\- HELLO et HELLO\_ACK.
 
-\- PING et PONG.
 
-\- SYSINFO et RESULT.
+\- Communication TCP Windows–Kali.
 
-\- Diagnostic CMD date autorisé.
+\- Échanges HELLO / HELLO\_ACK.
 
-\- Rejet d'une commande CMD non autorisée.
+\- Échanges PING / PONG.
 
-\- Trois tentatives lors d'une connexion refusée.
+\- SYSINFO / RESULT.
 
-\- Compilation de l'exécutable Windows V4.
+\- Diagnostic CMD `date`.
 
-\- Communication de l'exécutable V4 avec Kali.
+\- Refus d'une commande CMD non autorisée.
 
+\- Gestion des tentatives de connexion.
 
+\- Compilation et exécution de l'agent Windows V4.
 
-Ces résultats concernent le serveur de test,
+\- Tests locaux du registre et de la capture d'écran.
 
-pas encore le serveur principal du groupe.
+\- Vérification de la journalisation d'erreurs du serveur.
 
 
 
-\## 11. Intégration au serveur principal
+\### Tests du 23 novembre 2026
 
 
 
-Pour intégrer les composants, il faudra :
+\*\*Gestion des clients\*\*
 
 
 
-1\. Utiliser une version commune de shared/protocol.py.
+\- Enregistrement d'un client Windows simulé.
 
-2\. Définir le même port TCP pour le serveur et les agents.
+\- Attribution d'un identifiant unique.
 
-3\. Vérifier le traitement de HELLO et HELLO\_ACK.
+\- Déconnexion.
 
-4\. Implémenter la réception des messages délimités
+\- Vérification du nombre de clients actifs.
 
-&#x20;  par un retour à la ligne.
 
-5\. Associer les réponses aux identifiants des demandes.
 
-6\. Vérifier les messages pris en charge par chaque agent.
+\*\*Interpréteur de commandes\*\*
 
-7\. Gérer les connexions et les déconnexions.
 
-8\. Tester Windows et Debian avec le serveur principal.
 
-9\. Vérifier les exigences officielles et documenter
+\- Préparation du message `cmd` pour `date`.
 
-&#x20;  les fonctionnalités non réalisées.
+\- Vérification du format du message.
 
+\- Test local réussi.
 
 
-Le serveur devra traiter uniquement les demandes
 
-explicitement prises en charge par chaque client.
+\*\*Intégration Windows–Kali V4\*\*
+
+
+
+Le serveur principal a réussi :
+
+
+
+1\. La réception de la connexion Windows.
+
+2\. Le traitement du message `hello`.
+
+3\. L'envoi du message `hello\_ack`.
+
+4\. L'échange `ping` / `pong`.
+
+5\. La demande `sysinfo`.
+
+6\. Le diagnostic `date`.
+
+7\. L'enregistrement de la déconnexion.
+
+8\. Le retour à l'attente d'une nouvelle connexion.
+
+
+
+Le journal du serveur affiche notamment :
+
+
+
+```text
+
+\[SUCCES] Session de diagnostic terminee
+
+\[CLIENT] Deconnexion : windows-agent
+
+\[SERVEUR] Clients connectes : 0
+
+\[SERVEUR] Pret pour une nouvelle connexion
+
+```
+
+
+
+\*\*Conclusion des essais :\*\* l'intégration Windows–Kali V4 fonctionne pour les scénarios de diagnostic testés.
+
+
+
+\## 11. État de l'intégration
+
+
+
+| Élément | État |
+
+|---|---|
+
+| Protocole JSON commun | Validé avec Windows |
+
+| Port TCP commun | Validé sur 5001 |
+
+| HELLO / HELLO\_ACK | Validé |
+
+| PING / PONG | Validé |
+
+| SYSINFO / RESULT | Validé |
+
+| Diagnostic CMD `date` | Validé |
+
+| Gestion des clients | Validée pour les sessions testées |
+
+| Gestion des erreurs | Testée |
+
+| Connexions successives | Testées |
+
+| Plusieurs clients simultanés | Non démontré |
+
+| Agent Debian | À intégrer et tester |
+
+| Démarrage automatique Windows | Non confirmé |
+
+| Vérification complète des exigences | À effectuer |
+
+
+
+Les prochaines priorités sont l'intégration Debian et la comparaison des fonctionnalités réalisées avec les consignes officielles.
 
 
 
@@ -550,33 +618,47 @@ explicitement prises en charge par chaque client.
 
 
 
-Dépôt :
+\*\*Dépôt :\*\*  
 
 https://github.com/Idi18/projet-ethical-hacking
 
 
 
-Branche Windows :
+\*\*Branche de développement :\*\*  
 
-windows-integration
-
-
-
-Dernier commit Windows vérifié avant ce document :
-
-63a4c78
+`windows-integration`
 
 
 
-Le protocole commun est actuellement développé
+\*\*Dernier commit vérifié :\*\*  
 
-sur la branche windows-integration.
+`3e3c708`
 
 
 
-Avant toute fusion, il faut comparer les changements
+\*\*Message du commit :\*\*  
 
-du coéquipier afin d'éviter d'écraser son travail.
+`Integration du serveur Kali V4 et gestion des clients`
+
+
+
+Ce commit inclut les cinq modules du serveur Kali V4.
+
+
+
+Le 23 novembre 2026, le `git push` a réussi et la branche locale était synchronisée avec `origin/windows-integration`.
+
+
+
+Le code Windows et les modules du serveur sont ainsi sauvegardés dans cette branche.
+
+
+
+Avant toute fusion avec le travail Debian, les modifications du coéquipier doivent être comparées et les éventuels conflits doivent être résolus dans une branche d'intégration.
+
+
+
+La branche `main` ne doit pas être considérée comme mise à jour tant que cette fusion n'a pas été effectuée.
 
 
 
@@ -584,27 +666,23 @@ du coéquipier afin d'éviter d'écraser son travail.
 
 
 
-Le laboratoire utilise un réseau VMware isolé.
+Les tests ont été effectués dans un laboratoire VMware sur un réseau Host-only.
 
 
 
-Les communications TCP/JSON ne disposent pas encore
-
-d'une authentification applicative et d'un chiffrement
-
-démontrés.
+Les communications TCP/JSON ne disposent pas d'une authentification applicative et d'un chiffrement démontrés.
 
 
 
-Les tests doivent rester limités aux machines autorisées
-
-du laboratoire.
+Le serveur doit rester limité au réseau autorisé du laboratoire.
 
 
 
-Les fonctions sensibles ne doivent pas être présentées
+Les diagnostics du programme principal sont limités à un ensemble prédéfini de commandes.
 
-comme fonctionnelles à distance lorsqu'elles ne le sont pas.
+
+
+Les fonctionnalités sensibles ou non validées à distance doivent être présentées comme expérimentales ou incomplètes dans le rapport.
 
 
 
@@ -612,23 +690,39 @@ comme fonctionnelles à distance lorsqu'elles ne le sont pas.
 
 
 
-L'agent Windows V4 est fonctionnel dans les scénarios
-
-de test TCP réalisés avec Kali.
+Le 23 novembre 2026, l'agent Windows V4 et le serveur Kali V4 ont réussi leur test d'intégration.
 
 
 
-Les prochaines étapes concernent la mise en commun
-
-du protocole, le développement du serveur principal,
-
-l'intégration de l'agent Linux et les essais finaux.
+Les cinq modules du serveur principal ont été développés et publiés sur GitHub dans le commit `3e3c708`.
 
 
 
-Ce document sert de référence d'intégration pour
-
-éviter les incompatibilités entre les composants.
+Les fonctionnalités validées comprennent l'identification des clients, les échanges TCP/JSON, les diagnostics système autorisés, la gestion des déconnexions et la journalisation des erreurs.
 
 
+
+Le projet n'est toutefois pas encore entièrement finalisé.
+
+
+
+Les prochaines étapes concernent :
+
+
+
+1\. L'intégration de l'agent Debian.
+
+2\. Les tests du projet commun.
+
+3\. La vérification des exigences officielles encore ouvertes.
+
+4\. La mise à jour des preuves et du rapport.
+
+5\. La fusion contrôlée des branches.
+
+6\. La préparation de l'archive finale.
+
+
+
+Ce document constitue la référence technique de l'intégration Windows–Kali V4 et de la préparation de l'intégration Debian.
 
