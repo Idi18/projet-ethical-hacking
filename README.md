@@ -1,3 +1,5 @@
+
+
 \# Projet Ethical Hacking — Architecture client/serveur Python
 
 
@@ -6,27 +8,21 @@
 
 
 
-Ce projet universitaire consiste à développer une architecture client/serveur en Python, dans un environnement de laboratoire VMware.
+Ce projet universitaire consiste à développer et tester une architecture client/serveur Python dans un laboratoire VMware autorisé.
 
 
 
 L'architecture comprend trois composants :
 
+\- \*\*Kali Linux V5\*\* : serveur TCP central, gestion des connexions et diagnostics.
 
+\- \*\*Windows 11 V4\*\* : agent Windows avec diagnostics prédéfinis.
 
-\- \*\*Kali Linux :\*\* serveur principal assurant les communications TCP, la gestion des clients et les diagnostics.
-
-\- \*\*Windows 11 :\*\* agent client permettant l'identification du système et l'exécution de diagnostics prédéfinis.
-
-\- \*\*Debian Linux :\*\* agent client Linux destiné à être intégré au serveur commun.
-
-
-
-Les machines communiquent à l'aide de sockets TCP et de messages JSON.
+\- \*\*Debian Linux\*\* : agent Linux compatible avec les diagnostics du serveur Kali V5.
 
 
 
-Les tests sont effectués uniquement dans un environnement VMware autorisé.
+Les machines échangent des messages JSON sur TCP.
 
 
 
@@ -34,117 +30,41 @@ Les tests sont effectués uniquement dans un environnement VMware autorisé.
 
 
 
-| Machine | Adresse IP | Fonction |
+| Machine | Adresse IP | Rôle |
 
 |---|---|---|
 
-| Kali Linux | 192.168.109.129 | Serveur principal |
+| Kali Linux | 192.168.109.129 | Serveur |
 
 | Windows 11 virtuel | 192.168.109.134 | Agent Windows |
 
-| Debian Linux | 192.168.109.133 | Agent Linux à intégrer |
+| Debian Linux | 192.168.109.133 | Agent Linux |
 
-| Windows principal | 192.168.109.1 | Développement et gestion GitHub |
-
-
-
-\*\*Réseau :\*\* VMware VMnet1 (Host-only)
+| Windows principal | 192.168.109.1 | Développement et Git |
 
 
 
-\*\*Port TCP utilisé :\*\* 5001
+Réseau : VMware VMnet1 (Host-only).
 
 
 
-Les adresses IP correspondent à la configuration du laboratoire et peuvent nécessiter une adaptation sur d'autres machines.
+Port du serveur : \*\*5001\*\*.
 
 
 
-\## 3. Structure du projet
+Ces adresses sont propres au laboratoire et peuvent changer selon la configuration VMware.
 
 
 
-```text
-
-projet-ethical-hacking/
-
-│
-
-├── agents/
-
-│   ├── windows/
-
-│   │   ├── main.py
-
-│   │   ├── commandes\_locales.py
-
-│   │   ├── registry.py
-
-│   │   ├── security\_audit.py
-
-│   │   └── sam\_audit.py
-
-│   │
-
-│   └── linux/
-
-│       ├── main.py
-
-│       ├── filesystem.py
-
-│       └── security\_audit.py
-
-│
-
-├── serveur/
-
-│   ├── main.py
-
-│   ├── socket\_server.py
-
-│   ├── command\_interpreter.py
-
-│   ├── clients\_manager.py
-
-│   └── error\_handler.py
-
-│
-
-├── shared/
-
-│   └── protocol.py
-
-│
-
-├── docs/
-
-│   ├── WINDOWS\_AGENT.md
-
-│   ├── INTEGRATION\_WINDOWS\_KALI.md
-
-│   └── screenshots/
-
-│
-
-└── README.md
-
-```
+\## 3. Protocole de communication
 
 
 
-Les fichiers de l'agent Debian existent dans l'arborescence, mais leur implémentation et leur intégration restent à confirmer.
+Les messages sont encodés en UTF-8, au format JSON, et terminés par un retour à la ligne.
 
 
 
-\## 4. Protocole de communication
-
-
-
-Le projet utilise des messages JSON encodés en UTF-8, terminés par un retour à la ligne.
-
-
-
-Exemple :
+Structure générale :
 
 
 
@@ -164,131 +84,129 @@ Exemple :
 
 
 
-Les principaux échanges comprennent :
+Principaux échanges :
 
+\- `hello` / `hello\_ack` : identification.
 
+\- `ping` / `pong` : vérification de la communication.
 
-| Message | Fonction |
+\- `sysinfo` / `result` : transmission d'informations système.
 
-|---|---|
+\- `cmd` / `result` : diagnostics Windows prédéfinis.
 
-| `hello` | Identification du client |
+\- `error` : signalement d'erreurs.
 
-| `hello\_ack` | Confirmation du serveur |
 
-| `ping` / `pong` | Vérification de la communication |
 
-| `sysinfo` | Demande d'informations système |
+Le serveur vérifie la correspondance entre les identifiants des demandes et des réponses.
 
-| `cmd` | Diagnostic prédéfini |
 
-| `result` | Transmission du résultat |
 
-| `error` | Signalement d'une erreur |
+\## 4. Serveur Kali V5
 
 
 
-Le serveur vérifie les identifiants des réponses afin de les associer aux demandes envoyées.
+Le serveur comprend :
 
+\- `serveur/main.py` : gestion des sessions TCP.
 
+\- `serveur/socket\_server.py` : réception des connexions.
 
-\## 5. Serveur Kali V5
+\- `serveur/clients\_manager.py` : suivi des clients.
 
+\- `serveur/command\_interpreter.py` : préparation et validation des diagnostics.
 
+\- `serveur/error\_handler.py` : journalisation des erreurs.
 
-Le serveur Kali V5 comprend cinq modules :
 
 
+Le serveur utilise `ThreadPoolExecutor` et un verrou pour protéger les données partagées.
 
-\- `main.py` : démarrage du serveur et gestion des sessions.
 
-\- `socket\_server.py` : ouverture du socket TCP et acceptation des connexions.
 
-\- `clients\_manager.py` : suivi des clients et de leurs déconnexions.
+La limite configurée est de quatre sessions simultanées.
 
-\- `command\_interpreter.py` : préparation et vérification des diagnostics autorisés.
 
-\- `error\_handler.py` : classification et journalisation des erreurs.
 
+Deux connexions TCP parallèles ont été testées. Le fonctionnement avec quatre connexions simultanées n'a pas été validé.
 
 
-\### Gestion parallèle
 
+\## 5. Agent Windows V4
 
 
-Le serveur V5 utilise `ThreadPoolExecutor` pour traiter plusieurs connexions.
 
+Fonctionnalités testées :
 
+\- Connexion TCP à Kali.
 
-Le nombre maximal de sessions simultanées est actuellement fixé à quatre.
+\- Identification du client.
 
+\- Réponses `PING/PONG`.
 
+\- Transmission des informations système.
 
-Le dictionnaire partagé du gestionnaire de clients est protégé par un verrou `threading.Lock`.
+\- Diagnostic prédéfini `date`.
 
+\- Refus des commandes non autorisées.
 
 
-Deux sessions TCP simultanées ont été testées avec succès le 23 novembre 2026.
 
+Les modules de registre et de capture d'écran ont fait l'objet de tests locaux. Leur exécution distante n'a pas été démontrée.
 
 
-\## 6. Agent Windows V4
 
+L'audit SAM demeure expérimental.
 
 
-L'agent Windows V4 prend en charge :
 
+\## 6. Agent Debian
 
 
-\- L'identification auprès du serveur.
 
-\- La transmission des informations système.
+L'agent Debian initial a été intégré à la branche commune, puis son fichier principal `agents/linux/main.py` a été adapté au protocole JSON utilisé par Kali V5.
 
-\- Les échanges PING/PONG.
 
-\- Les diagnostics autorisés `date`, `ordinateur` et `windows`.
 
-\- Le refus des commandes non autorisées.
+Fonctionnalités testées :
 
-\- Les tentatives limitées de reconnexion.
+\- Connexion TCP Debian → Kali.
 
+\- Identification `HELLO/HELLO\_ACK`.
 
+\- Réponse `PING/PONG`.
 
-Les modules de registre et de capture d'écran ont également fait l'objet de tests locaux.
+\- Réponse `SYSINFO/RESULT`.
 
+\- Fermeture de session.
 
 
-Les demandes distantes `registry` et `screenshot` renvoient actuellement un statut informatif, sans déclencher ces opérations.
 
+Le fichier `agents/linux/diagnostic\_client.py` conserve également un client de diagnostic indépendant.
 
 
-Le module d'audit SAM demeure expérimental ; aucune récupération effective de données protégées n'a été démontrée.
 
+Les fonctions d'exécution de commandes Bash arbitraires à distance ne sont pas reprises dans la version intégrée.
 
 
-\## 7. Installation et lancement
 
+Les modules `filesystem.py` et `security\_audit.py` ne contiennent pas encore d'implémentation.
 
 
-\### Prérequis
 
+Le démarrage automatique par service Linux n'a pas été validé.
 
 
-\- Python 3 installé sur Kali Linux.
 
-\- Un environnement VMware configuré avec un réseau Host-only.
+\## 7. Exécution dans le laboratoire
 
-\- L'agent Windows V4 ou son exécutable préparé sur Windows 11.
 
-\- Les fichiers du projet disponibles sur les machines concernées.
 
+\### Serveur Kali
 
 
-\### Démarrer le serveur Kali
 
-
-
-Dans le terminal Kali, depuis le répertoire du projet :
+Depuis le répertoire racine du projet :
 
 
 
@@ -300,27 +218,11 @@ python3 -m serveur.main
 
 
 
-Le serveur affiche notamment :
+\### Agent Windows
 
 
 
-```text
-
-\[SERVEUR] Demarrage Kali V5
-
-\[SERVEUR] Maximum clients simultanes : 4
-
-\[SERVEUR] En attente sur 192.168.109.129:5001
-
-```
-
-
-
-\### Démarrer l'agent Windows
-
-
-
-Dans le CMD de la machine virtuelle Windows 11, depuis le dossier contenant l'exécutable :
+Dans le CMD de la VM Windows 11, depuis le dossier de l'exécutable :
 
 
 
@@ -332,23 +234,27 @@ agent-windows-v4.exe --ip 192.168.109.129 --port 5001
 
 
 
-L'agent établit une connexion TCP avec Kali et traite les demandes prévues par le serveur.
-
-
-
 \### Agent Debian
 
 
 
-Les instructions définitives seront ajoutées après réception et validation du code de l'agent Debian.
+Dans le terminal de la VM Debian, avec la version intégrée du fichier principal :
 
 
 
-\## 8. Tests réalisés
+```bash
+
+python3 \~/main.py --ip 192.168.109.129 --port 5001
+
+```
 
 
 
-Les validations suivantes ont été effectuées :
+Le chemin Debian ci-dessus correspond à l'emplacement utilisé pour les tests VMware.
+
+
+
+\## 8. Résultats des tests
 
 
 
@@ -356,59 +262,51 @@ Les validations suivantes ont été effectuées :
 
 |---|---|
 
-| Connexion Windows–Kali | Réussi |
+| Windows → Kali | Réussi |
 
-| Identification HELLO / HELLO\_ACK | Réussi |
+| Debian → Kali | Réussi |
 
-| Échange PING / PONG | Réussi |
+| HELLO / HELLO\_ACK | Réussi |
+
+| PING / PONG | Réussi |
 
 | SYSINFO / RESULT | Réussi |
 
 | Diagnostic Windows `date` | Réussi |
 
-| Refus d'une commande non autorisée | Réussi lors des tests Windows précédents |
-
-| Gestion des erreurs de connexion | Réussi |
-
-| Journalisation des erreurs Kali | Réussi |
+| Gestion des erreurs serveur | Testée |
 
 | Enregistrement et déconnexion des clients | Réussi |
 
-| Gestion concurrente de dix clients simulés dans le gestionnaire | Réussi |
+| Dix clients simulés dans le gestionnaire | Testé |
 
-| Deux sessions TCP parallèles sur Kali V5 | Réussi |
+| Deux sessions TCP parallèles | Réussi |
 
-| Intégration complète Debian | À vérifier |
+| Quatre sessions TCP simultanées | Non validé |
 
-
-
-Les captures et les journaux associés aux tests doivent être conservés avec les preuves du rapport.
+| Fonctions Linux supplémentaires | Non validées |
 
 
 
-\## 9. Limites actuelles
+Les captures de tests ont été présentées durant le développement. Leur présence dans le dossier de remise doit être vérifiée séparément.
 
 
 
-Les limites identifiées sont :
+\## 9. Limites et sécurité
 
 
 
-\- L'intégration complète de l'agent Debian reste à réaliser.
+\- Absence d'authentification applicative démontrée.
 
-\- Le démarrage automatique de l'agent Windows n'a pas été validé.
+\- Absence de chiffrement TCP/TLS démontré.
 
-\- Certaines fonctionnalités Windows sont disponibles uniquement lors de tests locaux.
+\- Certaines fonctions Windows ont uniquement été testées localement.
 
-\- L'audit SAM n'a pas permis de démontrer une récupération effective de données protégées.
+\- Modules Linux supplémentaires non implémentés ou non validés.
 
-\- Les communications TCP/JSON ne disposent pas d'une authentification applicative ou d'un chiffrement démontrés.
+\- Démarrage automatique des agents non validé.
 
-\- Le comportement du serveur avec quatre clients simultanés n'a pas encore été testé ; le test réseau a porté sur deux sessions.
-
-
-
-Les fonctionnalités non vérifiées ne sont pas considérées comme validées.
+\- Tests réalisés uniquement dans un environnement VMware autorisé.
 
 
 
@@ -416,61 +314,45 @@ Les fonctionnalités non vérifiées ne sont pas considérées comme validées.
 
 
 
-\*\*Dépôt :\*\* https://github.com/Idi18/projet-ethical-hacking
+Dépôt : https://github.com/Idi18/projet-ethical-hacking
 
 
 
-\*\*Branche d'intégration Windows–Kali :\*\* `windows-integration`
+Branche d'intégration : `integration-finale`.
 
 
 
-\*\*Dernier commit vérifié :\*\* `dbfca02`
+Dernier commit vérifié avant la mise à jour de ce README : `31a718a`.
 
 
 
-Cette branche contient l'agent Windows V4, le serveur Kali V5 et leur documentation.
+Cette branche réunit :
+
+\- Le serveur Kali V5.
+
+\- L'agent Windows V4.
+
+\- L'agent Debian adapté aux diagnostics du serveur.
+
+\- Le protocole commun et les modules de test.
 
 
 
-L'intégration de Debian devra être effectuée après comparaison des branches et vérification du protocole commun.
+La branche `main` n'a pas encore fait l'objet d'une fusion finale dans cette procédure.
 
 
 
-Une fusion vers `main` ne sera réalisée qu'après les tests d'intégration.
+\## 11. Conclusion
 
 
 
-\## 11. Documentation
+Les tests confirment une communication fonctionnelle entre le serveur Kali V5 et les agents Windows et Debian pour les diagnostics prévus.
 
 
 
-Pour davantage d'informations :
+Le projet démontre l'utilisation de sockets TCP, d'un protocole JSON commun, de la gestion des clients et du traitement parallèle de connexions.
 
 
 
-\- `docs/WINDOWS\_AGENT.md` : conception et tests de l'agent Windows.
-
-\- `docs/INTEGRATION\_WINDOWS\_KALI.md` : protocole commun et résultats d'intégration.
-
-\- `docs/screenshots/` : emplacement prévu pour les preuves visuelles.
-
-
-
-\## 12. Conclusion
-
-
-
-Le projet dispose d'une communication opérationnelle entre un agent Windows V4 et un serveur Kali V5.
-
-
-
-Le serveur prend en charge les diagnostics autorisés, la gestion des clients, les erreurs et les connexions TCP parallèles grâce aux threads.
-
-
-
-Les résultats obtenus constituent une base fonctionnelle pour l'intégration du client Debian et les essais finaux.
-
-
-
-La conformité complète aux exigences du projet devra être vérifiée avant la remise.
+Les fonctionnalités non implémentées ou non testées sont clairement distinguées des résultats validés.
 
