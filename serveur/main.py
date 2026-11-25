@@ -1,4 +1,3 @@
-
 import json
 import socket
 from concurrent.futures import ThreadPoolExecutor
@@ -15,20 +14,17 @@ from serveur.error_handler import gerer_erreur
 from serveur.clients_manager import ClientsManager
 from serveur.command_interpreter import CommandInterpreter
 
-
-HOST = "192.168.109.129"
+HOST = "0.0.0.0"
 PORT = 5001
 MAX_MESSAGE_SIZE = 1024 * 1024
 MAX_CLIENTS = 4
-
 
 def envoyer(sock, message):
     """Envoie un message JSON."""
     sock.sendall(encode_message(message))
 
-
 def recevoir(fichier):
-    """Recoit et valide un message JSON."""
+    """Reçoit et valide un message JSON."""
     ligne = fichier.readline(MAX_MESSAGE_SIZE + 1)
 
     if not ligne:
@@ -50,14 +46,13 @@ def recevoir(fichier):
 
     return message
 
-
 def diagnostic(sock, fichier, message, interpreteur):
     """Envoie un diagnostic autorise et valide la reponse."""
     envoyer(sock, message)
 
     print(
         f"[ENVOI] Type={message['type']} "
-        f"| ID={message['id']}",
+        f"ID={message['id']}",
         flush=True,
     )
 
@@ -71,7 +66,6 @@ def diagnostic(sock, fichier, message, interpreteur):
     interpreteur.afficher_reponse(reponse)
 
     return reponse
-
 
 def traiter_client(sock, adresse, gestionnaire, interpreteur):
     """Traite une session client dans son propre thread."""
@@ -112,7 +106,7 @@ def traiter_client(sock, adresse, gestionnaire, interpreteur):
 
             print(
                 f"[SERVEUR] HELLO accepte "
-                f"| Client={client_id}",
+                f"Client={client_id}",
                 flush=True,
             )
 
@@ -140,7 +134,7 @@ def traiter_client(sock, adresse, gestionnaire, interpreteur):
 
             print(
                 f"[SUCCES] Session de diagnostic terminee "
-                f"| Client={client_id}",
+                f"Client={client_id}",
                 flush=True,
             )
 
@@ -150,7 +144,6 @@ def traiter_client(sock, adresse, gestionnaire, interpreteur):
     finally:
         if client_id is not None:
             gestionnaire.deconnecter(client_id)
-
         sock.close()
 
         print(
@@ -159,25 +152,12 @@ def traiter_client(sock, adresse, gestionnaire, interpreteur):
             flush=True,
         )
 
-
-def session_thread(
-    sock,
-    adresse,
-    gestionnaire,
-    interpreteur,
-    places,
-):
+def session_thread(sock, adresse, gestionnaire, interpreteur, places):
     """Execute la session et libere sa place."""
     try:
-        traiter_client(
-            sock,
-            adresse,
-            gestionnaire,
-            interpreteur,
-        )
+        traiter_client(sock, adresse, gestionnaire, interpreteur)
     finally:
         places.release()
-
 
 def main():
     """Serveur TCP avec plusieurs clients simultanes."""
@@ -199,9 +179,7 @@ def main():
         with ThreadPoolExecutor(
             max_workers=MAX_CLIENTS
         ) as executant:
-
             with SocketServer(HOST, PORT) as serveur:
-
                 while True:
                     connexion = serveur.accepter_client()
 
@@ -252,7 +230,6 @@ def main():
             "[SERVEUR] Arret du serveur Kali V5",
             flush=True,
         )
-
 
 if __name__ == "__main__":
     main()
