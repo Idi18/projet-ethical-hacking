@@ -19,7 +19,7 @@ class CommandInterpreter:
             print(f"  {nom} : {description}")
 
     def preparer_commande(self, nom):
-        """Construit un message CMD pour un diagnostic autorise."""
+        """Construit un message CMD pour un diagnostic Windows autorise."""
         nom = nom.strip().lower()
 
         if nom not in self.COMMANDES_AUTORISEES:
@@ -27,7 +27,7 @@ class CommandInterpreter:
                 f"Commande non autorisee : {nom}"
             )
 
-        return cmd(nom, {})
+        return cmd(nom, [])
 
     def preparer_ping(self):
         """Construit un message PING."""
@@ -36,6 +36,10 @@ class CommandInterpreter:
     def preparer_sysinfo(self):
         """Construit une demande SYSINFO."""
         return make_message(MessageType.SYSINFO, {})
+
+    def preparer_interfaces(self):
+        """Construit une demande des interfaces reseau Linux."""
+        return make_message("interfaces", {})
 
     def verifier_reponse(self, message, identifiant_attendu=None):
         """Verifie le format et l'identifiant d'une reponse."""
