@@ -236,7 +236,7 @@ Le test final des interfaces a été réalisé sur Debian avec une copie actuali
 | Démarrage automatique Windows | Non validé |
 | Démarrage automatique Debian | À confirmer |
 
-Le ZIP de remise contient 33 captures de preuve (numérotées de manière non continue, jusqu'a la capture 68) et le script `test_4_clients.py`. Certaines captures démontrent des tests locaux, et non des opérations à distance.
+Le ZIP de remise contient 34 captures de preuve (numérotées de manière non continue, jusqu'a la capture 69) et le script `test_4_clients.py`. Certaines captures démontrent des tests locaux, et non des opérations à distance.
 
 ## 9. Limites et sécurité
 
@@ -293,3 +293,5 @@ Les diagnostics `PING`, `SYSINFO`, la commande Windows `date` et la récupérati
 Le projet comprend également des mécanismes de gestion des clients, de traitement des erreurs et de connexions parallèles.
 
 Le test bonus de quatre clients simulés a réussi (4/4). Les fonctionnalités restant à vérifier sont distinguées des résultats réellement obtenus afin de présenter un bilan fidèle de l'état du projet.
+
+Test du Planificateur Windows : lancement automatique du Bloc-notes apres ouverture de session reussi (preuve 69). Ce test ne valide pas le demarrage automatique de l agent Windows.
