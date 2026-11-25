@@ -15,7 +15,7 @@ from serveur.clients_manager import ClientsManager
 from serveur.command_interpreter import CommandInterpreter
 
 
-HOST = "192.168.109.129"
+HOST = "0.0.0.0"
 PORT = 5001
 MAX_MESSAGE_SIZE = 1024 * 1024
 MAX_CLIENTS = 4
