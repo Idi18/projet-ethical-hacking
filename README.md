@@ -236,7 +236,7 @@ Le test final des interfaces a été réalisé sur Debian avec une copie actuali
 | Démarrage automatique Windows | Non validé |
 | Démarrage automatique Debian | À confirmer |
 
-Le ZIP de remise contient 31 captures de preuve (numérotées de manière non continue, jusqu'à la n°66) et le script `test_4_clients.py`. Certaines captures démontrent des tests locaux, et non des opérations à distance.
+Le ZIP de remise contient 32 captures de preuve (numérotées de manière non continue, jusqu'à la n°67) et le script `test_4_clients.py`. Certaines captures démontrent des tests locaux, et non des opérations à distance.
 
 ## 9. Limites et sécurité
 
