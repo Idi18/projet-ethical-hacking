@@ -66,7 +66,7 @@ Le serveur utilise `ThreadPoolExecutor` et un mécanisme de verrouillage pour pr
 
 La limite configurée est de **quatre sessions simultanées**.
 
-Deux sessions TCP parallèles ont été testées avec succès. La capacité réelle à traiter quatre sessions simultanément n'a pas encore été démontrée.
+Deux sessions TCP parallèles ont été testées avec succès. Un test complémentaire avec quatre clients simulés s'est terminé avec le résultat `4/4 clients terminés` et `TEST MULTI-CLIENTS REUSSI` (preuve n°63 et script `test_4_clients.py`). Ce test valide ce scénario de charge, sans constituer un test de performance approfondi.
 
 Le serveur est capable de reconnaître les agents Windows et Linux et d'adapter les diagnostics en fonction du système.
 
@@ -107,7 +107,7 @@ Une vérification manuelle a également été réalisée dans la VM Windows 11 :
 
 L'écriture manuelle et la présence de cette valeur dans le registre de la VM ont été confirmées.
 
-Cependant, l'agent réseau ne déclenche pas actuellement cette opération : le traitement du message `REGISTRY` renvoie un statut informatif. Cette distinction doit être conservée dans l'évaluation des fonctionnalités.
+Le 26 novembre 2026, le diagnostic REGISTRY a ete valide entre le serveur Kali V5 et la machine virtuelle Windows 11. Le serveur a demande la lecture de la cle HKEY_CURRENT_USER\Software\MonProjetTP et a recu la valeur Status = Actif avec le statut success. La lecture distante est donc validee. En revanche, l ecriture du registre declenchee depuis Kali reste non validee.
 
 ### Capture d'écran Windows
 
@@ -172,7 +172,7 @@ Le fichier principal de l'agent Linux contient des traitements concernant :
 - Le parcours récursif des dossiers `/root` et `/home`.
 - La capture d'écran.
 
-Ces fonctionnalités restent à valider individuellement dans le laboratoire avant de pouvoir être considérées comme entièrement fonctionnelles.
+Les lectures et parcours correspondants ont été observés localement sur Debian (preuves n°60, 61, 62 et 64). Leur exécution complète à travers le protocole agent–serveur n'est pas démontrée. La capture d'écran Debian a échoué en raison de l'accès à l'affichage graphique (preuve n°65).
 
 Le démarrage automatique de l'agent Debian doit également être confirmé par un test après redémarrage de la VM.
 
@@ -186,7 +186,7 @@ Depuis le dossier racine du projet :
 python3 -m serveur.main
 ```
 
-Le serveur utilise l'adresse `192.168.109.129` et le port `5001` dans la configuration testée.
+Le serveur utilise le port `5001`. La version intégrée du fichier `serveur/main.py` est configurée pour écouter sur `0.0.0.0` (toutes les interfaces) ; dans le laboratoire, les agents se connectent à l'adresse Kali `192.168.109.129`. Cette configuration doit rester limitée au réseau VMware autorisé.
 
 ### Démarrer l'agent Windows
 
@@ -223,17 +223,22 @@ Le test final des interfaces a été réalisé sur Debian avec une copie actuali
 | Enregistrement et déconnexion des clients | Réussi |
 | Dix clients simulés dans le gestionnaire | Testé |
 | Deux connexions TCP parallèles | Réussi |
-| Quatre connexions TCP simultanées | Non validé |
+| Quatre clients simulés en parallèle | Réussi (4/4 ; capture n°63) |
+| Lecture REGISTRY Windows VMware depuis Kali V5 | Réussi : Status = Actif, statut success (nouvelle capture 62) |
+| Déconnexion inattendue et reconnexion Windows–Kali | Réussi (nouvelle capture 63) |
 | Écriture manuelle dans le registre Windows 11 | Réussi |
 | Écriture du registre depuis l'agent réseau | Non validée |
 | Capture d'écran Windows locale | Réussi |
 | Capture d'écran distante Windows | Non validée |
 | Récupération SAM | Non validée |
-| Fonctions Linux supplémentaires | Validation en cours |
+| Lecture locale de `/etc/passwd` et permissions de `/etc/shadow` | Vérifiées localement (captures n°60 et 61) |
+| Parcours local de `/root` et `/home` | Testé localement (captures n°62 et 64) |
+| Capture d'écran Debian | Échec d'accès à l'affichage graphique (capture n°65) |
+| Fonctions Linux supplémentaires depuis le serveur Kali | Non validées de bout en bout |
 | Démarrage automatique Windows | Non validé |
 | Démarrage automatique Debian | À confirmer |
 
-Les captures d'écran réalisées pendant les tests constituent des éléments de preuve complémentaires. Leur inclusion éventuelle dans le dossier de remise doit être vérifiée.
+Le ZIP de remise contient 39 captures de preuve (numérotées de manière non continue, jusqu'a la capture 69) et le script `test_4_clients.py`. Certaines captures démontrent des tests locaux, et non des opérations à distance.
 
 ## 9. Limites et sécurité
 
@@ -247,7 +252,7 @@ Les limites identifiées sont :
 - Plusieurs fonctionnalités Linux nécessitent des tests complémentaires.
 - Démarrage automatique des agents non entièrement validé.
 - Restrictions d'accès aux fichiers protégés du système.
-- Capacité maximale réelle de quatre connexions simultanées non vérifiée.
+- Test de quatre clients simulés réussi, sans campagne de performance ni montée en charge étendue.
 
 Les opérations touchant aux données sensibles des systèmes doivent être limitées au périmètre autorisé du laboratoire.
 
@@ -259,7 +264,7 @@ https://github.com/Idi18/projet-ethical-hacking
 
 Branche d'intégration : `integration-finale`.
 
-Dernier commit confirmé avant cette mise à jour documentaire : `1c7b9e5`.
+Dernier commit d'intégration confirmé lors de la préparation du ZIP : `622b704` (avant la présente révision documentaire).
 
 Le projet contient les répertoires suivants :
 
@@ -271,13 +276,11 @@ Le projet contient les répertoires suivants :
 
 Il contient également `README.md` et `requirements.txt`.
 
-Une archive provisoire a été créée sous le nom :
+L'archive de remise préparée est nommée :
 
-`projet-ethical-hacking-final.zip`
+`projet-ethical-hacking-remise-v5.zip`
 
-Cette archive a été générée à partir des fichiers suivis par Git dans la branche `integration-finale`, sans les sauvegardes locales.
-
-Elle devra être régénérée après les dernières modifications de code et de documentation.
+Elle a d'abord été créée à partir des fichiers suivis sur la branche `integration-finale`. Les preuves et le script de test bonus ont ensuite été ajoutés à l'archive. Après la présente révision, le fichier README du ZIP doit être remplacé par cette version corrigée afin que la documentation remise corresponde au bilan final.
 
 La fusion finale dans `main` n'a pas été confirmée.
 
@@ -287,8 +290,10 @@ Le projet démontre le fonctionnement d'une architecture client/serveur Python u
 
 Les communications entre le serveur Kali V5 et les agents Windows et Debian ont été validées.
 
-Les diagnostics `PING`, `SYSINFO`, la commande Windows `date` et la récupération des interfaces réseau Debian ont fonctionné pendant les tests d'intégration.
+Les diagnostics `PING`, `SYSINFO`, la commande Windows `date`, la lecture REGISTRY (Status = Actif) et la récupération des interfaces réseau Debian ont fonctionné pendant les tests d’intégration. La gestion des déconnexions inattendues et la reconnexion ont également été validées sur VMware.
 
 Le projet comprend également des mécanismes de gestion des clients, de traitement des erreurs et de connexions parallèles.
 
-Les fonctionnalités restant à vérifier sont distinguées des résultats réellement obtenus afin de présenter un bilan fidèle de l'état du projet.
+Le test bonus de quatre clients simulés a réussi (4/4). Les fonctionnalités restant à vérifier sont distinguées des résultats réellement obtenus afin de présenter un bilan fidèle de l'état du projet.
+
+Test du Planificateur Windows : lancement automatique du Bloc-notes apres ouverture de session reussi (preuve 69). Ce test ne valide pas le demarrage automatique de l agent Windows.

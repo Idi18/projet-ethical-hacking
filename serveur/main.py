@@ -139,6 +139,13 @@ def traiter_client(sock, adresse, gestionnaire, interpreteur):
                     interpreteur,
                 )
 
+                diagnostic(
+                    sock,
+                    fichier,
+                    interpreteur.preparer_registry(),
+                    interpreteur,
+                )
+
             # Diagnostic Linux : interfaces reseau
             elif "linux" in systeme.lower():
                 diagnostic(

@@ -1,0 +1,10 @@
+=== VERIFICATION LOCALE WINDOWS ===
+Python : 3.15.2
+Registre Windows : Actif
+Module de capture : disponible
+agents/windows/main.py : PRESENT
+agents/windows/registry.py : PRESENT
+agents/windows/security_audit.py : PRESENT
+agents/windows/sam_audit.py : PRESENT
+agent-windows-v4.spec : PRESENT
+=== VERIFICATION TERMINEE ===
