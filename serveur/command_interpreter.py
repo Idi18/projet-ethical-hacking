@@ -37,6 +37,10 @@ class CommandInterpreter:
         """Construit une demande SYSINFO."""
         return make_message(MessageType.SYSINFO, {})
 
+    def preparer_registry(self):
+        """Demande la lecture de la cle de demonstration Windows."""
+        return make_message(MessageType.REGISTRY, {})
+
     def preparer_interfaces(self):
         """Construit une demande des interfaces reseau Linux."""
         return make_message("interfaces", {})
