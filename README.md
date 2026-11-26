@@ -107,7 +107,7 @@ Une vérification manuelle a également été réalisée dans la VM Windows 11 :
 
 L'écriture manuelle et la présence de cette valeur dans le registre de la VM ont été confirmées.
 
-Cependant, l'agent réseau ne déclenche pas actuellement cette opération : le traitement du message `REGISTRY` renvoie un statut informatif. Cette distinction doit être conservée dans l'évaluation des fonctionnalités.
+Le 26 novembre 2026, le diagnostic REGISTRY a ete valide entre le serveur Kali V5 et la machine virtuelle Windows 11. Le serveur a demande la lecture de la cle HKEY_CURRENT_USER\Software\MonProjetTP et a recu la valeur Status = Actif avec le statut success. La lecture distante est donc validee. En revanche, l ecriture du registre declenchee depuis Kali reste non validee.
 
 ### Capture d'écran Windows
 
@@ -224,6 +224,8 @@ Le test final des interfaces a été réalisé sur Debian avec une copie actuali
 | Dix clients simulés dans le gestionnaire | Testé |
 | Deux connexions TCP parallèles | Réussi |
 | Quatre clients simulés en parallèle | Réussi (4/4 ; capture n°63) |
+| Lecture REGISTRY Windows VMware depuis Kali V5 | Réussi : Status = Actif, statut success (nouvelle capture 62) |
+| Déconnexion inattendue et reconnexion Windows–Kali | Réussi (nouvelle capture 63) |
 | Écriture manuelle dans le registre Windows 11 | Réussi |
 | Écriture du registre depuis l'agent réseau | Non validée |
 | Capture d'écran Windows locale | Réussi |
@@ -236,7 +238,7 @@ Le test final des interfaces a été réalisé sur Debian avec une copie actuali
 | Démarrage automatique Windows | Non validé |
 | Démarrage automatique Debian | À confirmer |
 
-Le ZIP de remise contient 34 captures de preuve (numérotées de manière non continue, jusqu'a la capture 69) et le script `test_4_clients.py`. Certaines captures démontrent des tests locaux, et non des opérations à distance.
+Le ZIP de remise contient 39 captures de preuve (numérotées de manière non continue, jusqu'a la capture 69) et le script `test_4_clients.py`. Certaines captures démontrent des tests locaux, et non des opérations à distance.
 
 ## 9. Limites et sécurité
 
@@ -262,7 +264,7 @@ https://github.com/Idi18/projet-ethical-hacking
 
 Branche d'intégration : `integration-finale`.
 
-Dernier commit d'intégration confirmé lors de la préparation du ZIP : `6da2dd5` (avant la présente révision documentaire).
+Dernier commit d'intégration confirmé lors de la préparation du ZIP : `622b704` (avant la présente révision documentaire).
 
 Le projet contient les répertoires suivants :
 
@@ -276,7 +278,7 @@ Il contient également `README.md` et `requirements.txt`.
 
 L'archive de remise préparée est nommée :
 
-`projet-ethical-hacking-code-final.zip`
+`projet-ethical-hacking-remise-v5.zip`
 
 Elle a d'abord été créée à partir des fichiers suivis sur la branche `integration-finale`. Les preuves et le script de test bonus ont ensuite été ajoutés à l'archive. Après la présente révision, le fichier README du ZIP doit être remplacé par cette version corrigée afin que la documentation remise corresponde au bilan final.
 
@@ -288,7 +290,7 @@ Le projet démontre le fonctionnement d'une architecture client/serveur Python u
 
 Les communications entre le serveur Kali V5 et les agents Windows et Debian ont été validées.
 
-Les diagnostics `PING`, `SYSINFO`, la commande Windows `date` et la récupération des interfaces réseau Debian ont fonctionné pendant les tests d'intégration.
+Les diagnostics `PING`, `SYSINFO`, la commande Windows `date`, la lecture REGISTRY (Status = Actif) et la récupération des interfaces réseau Debian ont fonctionné pendant les tests d’intégration. La gestion des déconnexions inattendues et la reconnexion ont également été validées sur VMware.
 
 Le projet comprend également des mécanismes de gestion des clients, de traitement des erreurs et de connexions parallèles.
 
