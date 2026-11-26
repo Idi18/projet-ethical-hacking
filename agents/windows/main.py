@@ -130,11 +130,13 @@ def handle_message(client, msg):
         response["id"] = msg_id
 
     elif msg_type == MessageType.REGISTRY.value:
-        response = result({
-            "fonction": "registry",
-            "statut": "disponible",
-            "execution": "locale uniquement"
-        })
+        try:
+            import winreg
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Software\\MonProjetTP") as key:
+                valeur, _ = winreg.QueryValueEx(key, "Status")
+            response = result({"fonction":"registry", "valeur":valeur, "statut":"success"})
+        except OSError as exc:
+            response = error(str(exc), "REGISTRY_READ_FAILED")
         response["id"] = msg_id
 
     elif msg_type == MessageType.SCREENSHOT.value:
