@@ -1,5 +1,6 @@
-
 import json
+import socket
+import os  # <-- Import ajouté pour le fork
 from concurrent.futures import ThreadPoolExecutor
 from threading import BoundedSemaphore
 
@@ -14,20 +15,17 @@ from serveur.error_handler import gerer_erreur
 from serveur.clients_manager import ClientsManager
 from serveur.command_interpreter import CommandInterpreter
 
-
 HOST = "0.0.0.0"
 PORT = 5001
 MAX_MESSAGE_SIZE = 1024 * 1024
 MAX_CLIENTS = 4
 
-
 def envoyer(sock, message):
-    """Envoie un message JSON termine par une nouvelle ligne."""
+    """Envoie un message JSON."""
     sock.sendall(encode_message(message))
 
-
 def recevoir(fichier):
-    """Recoit et valide un message JSON."""
+    """Reçoit et valide un message JSON."""
     ligne = fichier.readline(MAX_MESSAGE_SIZE + 1)
 
     if not ligne:
@@ -49,14 +47,13 @@ def recevoir(fichier):
 
     return message
 
-
 def diagnostic(sock, fichier, message, interpreteur):
     """Envoie un diagnostic autorise et valide la reponse."""
     envoyer(sock, message)
 
     print(
         f"[ENVOI] Type={message['type']} "
-        f"| ID={message['id']}",
+        f"ID={message['id']}",
         flush=True,
     )
 
@@ -70,7 +67,6 @@ def diagnostic(sock, fichier, message, interpreteur):
     interpreteur.afficher_reponse(reponse)
 
     return reponse
-
 
 def traiter_client(sock, adresse, gestionnaire, interpreteur):
     """Traite une session client dans son propre thread."""
@@ -111,11 +107,10 @@ def traiter_client(sock, adresse, gestionnaire, interpreteur):
 
             print(
                 f"[SERVEUR] HELLO accepte "
-                f"| Client={client_id}",
+                f"Client={client_id}",
                 flush=True,
             )
 
-            # Diagnostics communs : Windows et Linux
             diagnostic(
                 sock,
                 fichier,
@@ -130,7 +125,13 @@ def traiter_client(sock, adresse, gestionnaire, interpreteur):
                 interpreteur,
             )
 
-            # Diagnostic Windows autorise
+            diagnostic(
+                sock,
+                fichier,
+                interpreteur.preparer_commande("interfaces"),
+                interpreteur,
+            )
+
             if "windows" in systeme.lower():
                 diagnostic(
                     sock,
@@ -139,25 +140,9 @@ def traiter_client(sock, adresse, gestionnaire, interpreteur):
                     interpreteur,
                 )
 
-                diagnostic(
-                    sock,
-                    fichier,
-                    interpreteur.preparer_registry(),
-                    interpreteur,
-                )
-
-            # Diagnostic Linux : interfaces reseau
-            elif "linux" in systeme.lower():
-                diagnostic(
-                    sock,
-                    fichier,
-                    interpreteur.preparer_interfaces(),
-                    interpreteur,
-                )
-
             print(
                 f"[SUCCES] Session de diagnostic terminee "
-                f"| Client={client_id}",
+                f"Client={client_id}",
                 flush=True,
             )
 
@@ -167,7 +152,6 @@ def traiter_client(sock, adresse, gestionnaire, interpreteur):
     finally:
         if client_id is not None:
             gestionnaire.deconnecter(client_id)
-
         sock.close()
 
         print(
@@ -176,25 +160,30 @@ def traiter_client(sock, adresse, gestionnaire, interpreteur):
             flush=True,
         )
 
-
-def session_thread(
-    sock,
-    adresse,
-    gestionnaire,
-    interpreteur,
-    places,
-):
+def session_thread(sock, adresse, gestionnaire, interpreteur, places):
     """Execute la session et libere sa place."""
     try:
-        traiter_client(
-            sock,
-            adresse,
-            gestionnaire,
-            interpreteur,
-        )
+        traiter_client(sock, adresse, gestionnaire, interpreteur)
     finally:
         places.release()
 
+def executer_avec_fork(commande):
+    """
+    Démonstration de l'utilisation de os.fork().
+    Le processus parent crée un processus enfant, l'enfant exécute la commande,
+    et le parent attend la fin de l'enfant.
+    """
+    pid = os.fork()
+    if pid == 0:
+        # Code exécuté par le processus enfant
+        print(f"[FORK] Processus enfant (PID: {os.getpid()}) exécute : {commande}", flush=True)
+        os.system(commande)
+        os._exit(0) # L'enfant se termine
+    else:
+        # Code exécuté par le processus parent
+        print(f"[FORK] Processus parent (PID: {os.getpid()}) attend l'enfant...", flush=True)
+        os.waitpid(pid, 0)
+        print(f"[FORK] Processus enfant terminé.", flush=True)
 
 def main():
     """Serveur TCP avec plusieurs clients simultanes."""
@@ -216,9 +205,7 @@ def main():
         with ThreadPoolExecutor(
             max_workers=MAX_CLIENTS
         ) as executant:
-
             with SocketServer(HOST, PORT) as serveur:
-
                 while True:
                     connexion = serveur.accepter_client()
 
@@ -269,7 +256,6 @@ def main():
             "[SERVEUR] Arret du serveur Kali V5",
             flush=True,
         )
-
 
 if __name__ == "__main__":
     main()
