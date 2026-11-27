@@ -218,3 +218,12 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+capture_test.png
+test_server.py
+# Sauvegardes et fichiers temporaires du projet
+agents/windows/main_backup.py
+agents/windows/main_tcp_valide.py
+comparaison_windows.txt
+verification_windows.txt
+arborescence.txt
+transfert_kali.zip
