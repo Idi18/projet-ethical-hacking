@@ -262,9 +262,9 @@ Dépôt GitHub :
 
 https://github.com/Idi18/projet-ethical-hacking
 
-Branche d'intégration : `integration-finale`.
+Branche principale : `main`.
 
-Dernier commit d'intégration confirmé lors de la préparation du ZIP : `622b704` (avant la présente révision documentaire).
+Le développement a été réalisé sur les branches `windows-agent`, `windows-integration`, `debian-agent` puis `integration-finale`. La branche `integration-finale` a été fusionnée dans `main` le 27 novembre 2026 via la Pull Request #1 (commit de fusion `4c4a087`), sans conflit. Cette fusion inclut les dernières corrections de l'agent Debian et l'ajout de la fonction fork dans le serveur.
 
 Le projet contient les répertoires suivants :
 
@@ -274,15 +274,10 @@ Le projet contient les répertoires suivants :
 - `shared/`
 - `docs/`
 
-Il contient également `README.md` et `requirements.txt`.
+Il contient également `README.md`, `DEMONSTRATION.md` et `requirements.txt`.
 
-L'archive de remise préparée est nommée :
+L'archive de remise finale est générée à partir de la branche `main`. Les captures de preuve et le script de test bonus `test_4_clients.py` y sont ajoutés.
 
-`projet-ethical-hacking-remise-v5.zip`
-
-Elle a d'abord été créée à partir des fichiers suivis sur la branche `integration-finale`. Les preuves et le script de test bonus ont ensuite été ajoutés à l'archive. Après la présente révision, le fichier README du ZIP doit être remplacé par cette version corrigée afin que la documentation remise corresponde au bilan final.
-
-La fusion finale dans `main` n'a pas été confirmée.
 
 ## 11. Conclusion
 
